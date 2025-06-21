@@ -116,13 +116,25 @@ def show_status_table(date):
 
 @app.route("/<date>/graph")
 def show_graph(date):
-    image_path = os.path.join(DATA_DIR, f"{date}_graph.png")
     csv_path = os.path.join(DATA_DIR, f"{date}.csv")
+    image_filename = f"{date}_graph.png"
+    image_path = os.path.join("static", image_filename)
+
     if not os.path.exists(csv_path):
         abort(404)
-
+    
+    import matplotlib
+    matplotlib.use('Agg')  # GUI非依存の描画バックエンドを強制
+    # グラフ描画処理
     from matplotlib import pyplot as plt
-    import pandas as pd
+    import matplotlib.font_manager as fm
+    import csv
+    from datetime import datetime
+
+    # フォント指定（日本語表示に必要）
+    font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
+    if os.path.exists(font_path):
+        plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
 
     def determine_state(r, y, g):
         return get_light_status(r, y, g)[1:]
@@ -139,13 +151,20 @@ def show_graph(date):
 
     plt.figure(figsize=(12, 1.5))
     for i in range(len(times) - 1):
-        plt.barh(0, (times[i+1] - times[i]).seconds, left=(times[i] - times[0]).seconds, color=colors[i], height=0.5)
+        plt.barh(0, (times[i+1] - times[i]).seconds,
+                 left=(times[i] - times[0]).seconds,
+                 color=colors[i], height=0.5)
     plt.yticks([])
     plt.title(f"{date} 状態時系列")
     plt.tight_layout()
+
+    os.makedirs("static", exist_ok=True)
+    if os.path.exists(image_path):
+        os.remove(image_path)
     plt.savefig(image_path)
     plt.close()
-    return send_file(image_path, mimetype='image/png')
 
+    return render_template("graph.html", date=date, image_filename=image_filename)
+    
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
