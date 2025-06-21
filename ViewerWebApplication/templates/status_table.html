@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ date }} の状態表</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #aaa;
+            padding: 5px;
+            text-align: center;
+        }
+        th { background-color: #eee; }
+        .on-red { background-color: #cc0000; color: white; }
+        .off-red { background-color: #ffcccc; color: #800000; }
+        .on-yellow { background-color: #cccc00; color: black; }
+        .off-yellow { background-color: #ffffcc; color: #806000; }
+        .on-green { background-color: #00cc00; color: white; }
+        .off-green { background-color: #ccffcc; color: #006600; }
+        .state-green { background-color: green; color: white; }
+        .state-yellow { background-color: yellow; }
+        .state-red { background-color: red; color: white; }
+        .state-orange { background-color: orange; }
+        .state-purple { background-color: purple; color: white; }
+    </style>
+</head>
+<body>
+    <h2>{{ date }} のライト状態</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>時刻</th>
+                <th>赤</th>
+                <th>黄</th>
+                <th>緑</th>
+                <th>状態</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.time }}</td>
+                <td class="{{ 'on-red' if row.red == '点灯' else 'off-red' }}">{{ row.red }}</td>
+                <td class="{{ 'on-yellow' if row.yellow == '点灯' else 'off-yellow' }}">{{ row.yellow }}</td>
+                <td class="{{ 'on-green' if row.green == '点灯' else 'off-green' }}">{{ row.green }}</td>
+                <td class="state-{{ row.color }}">{{ row.state }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
