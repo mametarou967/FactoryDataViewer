@@ -3,6 +3,11 @@ import csv
 import os
 from datetime import datetime, timedelta
 
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
+import matplotlib.font_manager as fm
+
 app = Flask(__name__)
 DATA_DIR = "data"
 
@@ -122,40 +127,74 @@ def show_graph(date):
 
     if not os.path.exists(csv_path):
         abort(404)
-    
-    import matplotlib
-    matplotlib.use('Agg')  # GUI非依存の描画バックエンドを強制
-    # グラフ描画処理
-    from matplotlib import pyplot as plt
-    import matplotlib.font_manager as fm
-    import csv
-    from datetime import datetime
 
-    # フォント指定（日本語表示に必要）
     font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
     if os.path.exists(font_path):
         plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
 
-    def determine_state(r, y, g):
-        return get_light_status(r, y, g)[1:]
-
-    times, colors = [], []
+    # データ読み込み
+    data = []
     with open(csv_path, newline='', encoding='utf-8') as f:
         for row in csv.reader(f):
             if len(row) < 5:
                 continue
-            time = datetime.strptime(row[0], "%H:%M:%S")
-            state, color = determine_state(float(row[1]), float(row[2]), float(row[3]))
-            times.append(time)
-            colors.append(color)
+            try:
+                t = datetime.strptime(row[0], "%H:%M:%S")
+                r, y, g = float(row[1]), float(row[2]), float(row[3])
+                _, _, color = get_light_status(r, y, g)
+                data.append((t, color))
+            except:
+                continue
 
-    plt.figure(figsize=(12, 1.5))
-    for i in range(len(times) - 1):
-        plt.barh(0, (times[i+1] - times[i]).seconds,
-                 left=(times[i] - times[0]).seconds,
-                 color=colors[i], height=0.5)
+    if not data:
+        abort(400, description="No valid data found in CSV.")
+
+    # 8:00〜21:00のタイムレンジを固定
+    base_date = data[0][0].date()
+    range_start = datetime.combine(base_date, datetime.strptime("08:00:00", "%H:%M:%S").time())
+    range_end = datetime.combine(base_date, datetime.strptime("21:00:00", "%H:%M:%S").time())
+
+    # 時間ごとの色を辞書化
+    color_map = {t: c for t, c in data}
+
+    # 1分単位でループ（白がデフォルト）
+    current = range_start
+    times, colors = [], []
+    while current < range_end:
+        next_time = current + timedelta(minutes=1)
+        color = color_map.get(current, None)
+        if color is None:
+            # データなし: 白色（描画しない）
+            pass
+        elif color == "gray":
+            # 不明: 灰色で表示
+            times.append(current)
+            colors.append("gray")
+        else:
+            # 通常の色
+            times.append(current)
+            colors.append(color)
+        current = next_time
+
+    # 描画
+    plt.figure(figsize=(14, 2))
+    for i in range(len(times)):
+        left = (times[i] - range_start).total_seconds()
+        plt.barh(0, 60, left=left, color=colors[i], height=0.5)
+
+    # 横軸: 1時間ごと、水平に表示
+    xticks = []
+    xticklabels = []
+    hour = range_start
+    while hour <= range_end:
+        xticks.append((hour - range_start).total_seconds())
+        xticklabels.append(hour.strftime("%H:%M"))
+        hour += timedelta(hours=1)
+
+    plt.xticks(xticks, xticklabels, rotation=0)  # 水平表示
     plt.yticks([])
-    plt.title(f"{date} 状態時系列")
+    plt.xlim(0, (range_end - range_start).total_seconds())
+    plt.title(f"{date} 状態推移グラフ")
     plt.tight_layout()
 
     os.makedirs("static", exist_ok=True)
@@ -165,6 +204,7 @@ def show_graph(date):
     plt.close()
 
     return render_template("graph.html", date=date, image_filename=image_filename)
+
     
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
