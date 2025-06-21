@@ -23,6 +23,13 @@ https://qiita.com/gae-22/items/308f3f375cf0f5b0e5cb
 https://zenn.dev/thorie/articles/548emb-raspberry-pi-5-os-setup
 ```
 
+# ライブラリ設定
+
+```
+sudo apt install python3-matplotlib
+sudo apt install python3-pandas
+```
+
 # ブラウザで全角/半角を切り替えれるようにする
 
 * 以下のコマンドを実行
