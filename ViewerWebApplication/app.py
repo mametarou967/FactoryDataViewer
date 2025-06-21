@@ -78,7 +78,7 @@ def index():
     if latest:
         lights, _, _ = get_light_status(latest["red"], latest["yellow"], latest["green"])
         status = {**lights, "timestamp": latest["timestamp"]}
-    return render_template("index.html", status=status if latest else None)
+    return render_template("index.html", status=status if latest else None, thresholds = THRESHOLDS)
 
 @app.route("/<date>")
 def show_table(date):

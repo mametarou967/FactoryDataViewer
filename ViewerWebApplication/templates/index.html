@@ -40,5 +40,11 @@
     {% else %}
         <p>利用可能なデータがありません（過去5分以内）</p>
     {% endif %}
+    
+    <h2>閾値設定</h2>
+    <p>赤: {{ thresholds.red }}ルクス より大きい場合、点灯判定</p>
+    <p>黄: {{ thresholds.yellow }}ルクス より大きい場合、点灯判定</p>
+    <p>緑: {{ thresholds.green }}ルクス より大きい場合、点灯判定</p>
+
 </body>
 </html>
