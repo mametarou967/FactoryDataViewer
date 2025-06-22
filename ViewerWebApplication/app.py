@@ -126,7 +126,12 @@ def index():
         current += timedelta(days=1)
 
     return render_template("index.html", status=status if latest else None, thresholds=THRESHOLDS, calendar=calendar)
-    
+
+
+@app.route("/month/<year_month>/graph")
+def show_month_graph(year_month):
+    return render_template("month_graph.html")
+
 @app.route("/date/<date>/table")
 def show_table(date):
     filename = f"{date}.csv"

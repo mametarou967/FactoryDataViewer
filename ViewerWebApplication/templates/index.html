@@ -51,7 +51,7 @@
     {% for ym, data in calendar.items() %}
         <h3>
             {% if data.month_link %}
-                <a href="/{{ ym }}">{{ ym }}</a>
+                <a href="/month/{{ ym }}/graph">{{ ym }}</a>
             {% else %}
                 {{ ym }}
             {% endif %}
@@ -68,7 +68,7 @@
                     {% else %}
                         <td>
                             {% if day.link %}
-                                <a href="date/{{ day.date }}/graph">{{ day.day }}</a>
+                                <a href="/date/{{ day.date }}/graph">{{ day.day }}</a>
                             {% else %}
                                 {{ day.day }}
                             {% endif %}
