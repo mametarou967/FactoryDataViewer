@@ -78,8 +78,55 @@ def index():
     if latest:
         lights, _, _ = get_light_status(latest["red"], latest["yellow"], latest["green"])
         status = {**lights, "timestamp": latest["timestamp"]}
-    return render_template("index.html", status=status if latest else None, thresholds = THRESHOLDS)
+    # 年度判定（4月～翌年3月）
+    now = datetime.now()
+    if now.month >= 4:
+        fiscal_start = datetime(now.year, 4, 1)
+    else:
+        fiscal_start = datetime(now.year - 1, 4, 1)
+    fiscal_end = fiscal_start.replace(year=fiscal_start.year + 1) - timedelta(days=1)
 
+    # 存在するCSV日付・月の判定
+    existing_days = set()
+    existing_months = set()
+    for fname in os.listdir(DATA_DIR):
+        if fname.endswith(".csv"):
+            try:
+                date_obj = datetime.strptime(fname[:-4], "%Y-%m-%d")
+                if fiscal_start <= date_obj <= fiscal_end:
+                    existing_days.add(date_obj.date())
+                    existing_months.add(date_obj.strftime("%Y-%m"))
+            except:
+                continue
+
+    # カレンダーデータ構築
+    calendar = {}
+    current = fiscal_start
+    while current <= fiscal_end:
+        ym = current.strftime("%Y-%m")
+        if ym not in calendar:
+            calendar[ym] = {
+                "month_link": ym in existing_months,
+                "weeks": [[]]
+            }
+
+        week = calendar[ym]["weeks"][-1]
+        if len(week) == 0 and current.weekday() != 0:
+            week.extend([None] * current.weekday())
+
+        week.append({
+            "day": current.day,
+            "date": current.strftime("%Y-%m-%d"),
+            "link": current.date() in existing_days
+        })
+
+        if current.weekday() == 6:
+            calendar[ym]["weeks"].append([])
+
+        current += timedelta(days=1)
+
+    return render_template("index.html", status=status if latest else None, thresholds=THRESHOLDS, calendar=calendar)
+    
 @app.route("/<date>")
 def show_table(date):
     filename = f"{date}.csv"

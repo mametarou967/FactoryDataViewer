@@ -46,5 +46,39 @@
     <p>黄: {{ thresholds.yellow }}ルクス より大きい場合、点灯判定</p>
     <p>緑: {{ thresholds.green }}ルクス より大きい場合、点灯判定</p>
 
+    <h2>年度カレンダー（{{ calendar|length }}ヶ月分）</h2>
+
+    {% for ym, data in calendar.items() %}
+        <h3>
+            {% if data.month_link %}
+                <a href="/{{ ym }}">{{ ym }}</a>
+            {% else %}
+                {{ ym }}
+            {% endif %}
+        </h3>
+        <table border="1" cellspacing="0" cellpadding="4">
+            <tr>
+                <th>月</th><th>火</th><th>水</th><th>木</th><th>金</th><th>土</th><th>日</th>
+            </tr>
+            {% for week in data.weeks %}
+            <tr>
+                {% for day in week %}
+                    {% if day is none %}
+                        <td></td>
+                    {% else %}
+                        <td>
+                            {% if day.link %}
+                                <a href="/{{ day.date }}">{{ day.day }}</a>
+                            {% else %}
+                                {{ day.day }}
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+    {% endfor %}
+
 </body>
 </html>
