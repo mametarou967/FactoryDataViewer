@@ -127,7 +127,7 @@ def index():
 
     return render_template("index.html", status=status if latest else None, thresholds=THRESHOLDS, calendar=calendar)
     
-@app.route("/<date>")
+@app.route("/date/<date>/table")
 def show_table(date):
     filename = f"{date}.csv"
     filepath = os.path.join(DATA_DIR, filename)
@@ -147,7 +147,7 @@ def show_table(date):
             })
     return render_template("table.html", date=date, rows=rows)
 
-@app.route("/<date>/status")
+@app.route("/date/<date>/status")
 def show_status_table(date):
     filename = f"{date}.csv"
     filepath = os.path.join(DATA_DIR, filename)
@@ -166,7 +166,7 @@ def show_status_table(date):
             })
     return render_template("status_table.html", date=date, rows=rows)
 
-@app.route("/<date>/graph")
+@app.route("/date/<date>/graph")
 def show_graph(date):
     csv_path = os.path.join(DATA_DIR, f"{date}.csv")
     image_filename = f"{date}_graph.png"

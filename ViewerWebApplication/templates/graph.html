@@ -7,9 +7,10 @@
 <body>
     <h2>{{ date }} の状態グラフ</h2>
     <p>
-        <a href="/{{ date }}">データ表示</a> |
-        <a href="/{{ date }}/status">状態表示</a> |
-        <a href="/{{ date }}/graph">グラフ表示</a>
+        <a href="/">HOME</a> |
+        <a href="/date/{{ date }}/table">データ表示</a> |
+        <a href="/date/{{ date }}/status">状態表示</a> |
+        <a href="/date/{{ date }}/graph">グラフ表示</a>
     </p>
     <img src="/static/{{ image_filename }}" alt="状態グラフ" style="width: 100%;">
 </body>
