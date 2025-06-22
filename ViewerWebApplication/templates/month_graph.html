@@ -2,9 +2,15 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>状態グラフ</title>
+    <title>{{ year_month }} の月間グラフ</title>
 </head>
 <body>
-    こんにちは
+    <h2>{{ year_month }} の日別状態グラフ</h2>
+    <p><a href="/">HOME</a></p>
+
+    {% for item in images %}
+        <h3>{{ item.date }}</h3>
+        <img src="/static/{{ item.image_filename }}" alt="{{ item.date }} のグラフ" style="width: 100%;">
+    {% endfor %}
 </body>
 </html>

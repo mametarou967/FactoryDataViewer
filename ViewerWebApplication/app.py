@@ -71,6 +71,80 @@ def get_latest_data():
                     }
     return None
 
+def generate_graph_image(date):
+    csv_path = os.path.join(DATA_DIR, f"{date}.csv")
+    image_filename = f"{date}_graph.png"
+    image_path = os.path.join("static", image_filename)
+
+    if not os.path.exists(csv_path):
+        return
+
+    font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
+    if os.path.exists(font_path):
+        plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
+
+    data = []
+    with open(csv_path, newline='', encoding='utf-8') as f:
+        for row in csv.reader(f):
+            if len(row) < 5:
+                continue
+            try:
+                t = datetime.strptime(row[0], "%H:%M:%S")
+                r, y, g = float(row[1]), float(row[2]), float(row[3])
+                _, _, color = get_light_status(r, y, g)
+                data.append((t, color))
+            except:
+                continue
+
+    if not data:
+        return
+
+    base_date = datetime.strptime(date, "%Y-%m-%d")
+    range_start = datetime.combine(base_date, datetime.strptime("08:00:00", "%H:%M:%S").time())
+    range_end = datetime.combine(base_date, datetime.strptime("21:00:00", "%H:%M:%S").time())
+
+    color_map = {t: c for t, c in data}
+    current = range_start
+    times, colors = [], []
+    while current < range_end:
+        next_time = current + timedelta(minutes=1)
+        color = color_map.get(current.time(), None)
+        if color is None:
+            pass
+        elif color == "gray":
+            times.append(current)
+            colors.append("gray")
+        else:
+            times.append(current)
+            colors.append(color)
+        current = next_time
+
+    plt.figure(figsize=(14, 2))
+    for i in range(len(times)):
+        left = (times[i] - range_start).total_seconds()
+        plt.barh(0, 60, left=left, color=colors[i], height=0.5)
+
+    xticks = []
+    xticklabels = []
+    hour = range_start
+    while hour <= range_end:
+        xticks.append((hour - range_start).total_seconds())
+        xticklabels.append(hour.strftime("%H:%M"))
+        hour += timedelta(hours=1)
+
+    plt.xticks(xticks, xticklabels, rotation=0)
+    plt.yticks([])
+    plt.xlim(0, (range_end - range_start).total_seconds())
+    plt.title(f"{date} 状態推移グラフ")
+    plt.tight_layout()
+
+    os.makedirs("static", exist_ok=True)
+    if os.path.exists(image_path):
+        os.remove(image_path)
+    plt.savefig(image_path)
+    plt.close()
+
+
 @app.route("/")
 def index():
     latest = get_latest_data()
@@ -130,7 +204,42 @@ def index():
 
 @app.route("/month/<year_month>/graph")
 def show_month_graph(year_month):
-    return render_template("month_graph.html")
+    try:
+        month_date = datetime.strptime(year_month, "%Y-%m")
+    except:
+        abort(404)
+
+    year = month_date.year
+    month = month_date.month
+    day = 1
+    images = []
+
+    while True:
+        try:
+            current_date = datetime(year, month, day)
+        except:
+            break
+        date_str = current_date.strftime("%Y-%m-%d")
+        csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
+        image_filename = f"{date_str}_graph.png"
+        image_path = os.path.join("static", image_filename)
+
+        # 存在するCSVファイルについてのみ描画
+        if os.path.exists(csv_path):
+            if not os.path.exists(image_path):  # グラフ未生成なら生成
+                generate_graph_image(date_str)
+            images.append({
+                "date": date_str,
+                "image_filename": image_filename
+            })
+
+        day += 1
+
+    if not images:
+        abort(404)
+
+    return render_template("month_graph.html", year_month=year_month, images=images)
+
 
 @app.route("/date/<date>/table")
 def show_table(date):
@@ -173,90 +282,21 @@ def show_status_table(date):
 
 @app.route("/date/<date>/graph")
 def show_graph(date):
-    csv_path = os.path.join(DATA_DIR, f"{date}.csv")
     image_filename = f"{date}_graph.png"
     image_path = os.path.join("static", image_filename)
 
+    csv_path = os.path.join(DATA_DIR, f"{date}.csv")
     if not os.path.exists(csv_path):
         abort(404)
 
-    font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
-    if os.path.exists(font_path):
-        plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
+    # グラフ生成（既存ならスキップ）
+    if not os.path.exists(image_path):
+        generate_graph_image(date)
 
-    # データ読み込み
-    data = []
-    with open(csv_path, newline='', encoding='utf-8') as f:
-        for row in csv.reader(f):
-            if len(row) < 5:
-                continue
-            try:
-                t = datetime.strptime(row[0], "%H:%M:%S")
-                r, y, g = float(row[1]), float(row[2]), float(row[3])
-                _, _, color = get_light_status(r, y, g)
-                data.append((t, color))
-            except:
-                continue
-
-    if not data:
-        abort(400, description="No valid data found in CSV.")
-
-    # 8:00〜21:00のタイムレンジを固定
-    base_date = data[0][0].date()
-    range_start = datetime.combine(base_date, datetime.strptime("08:00:00", "%H:%M:%S").time())
-    range_end = datetime.combine(base_date, datetime.strptime("21:00:00", "%H:%M:%S").time())
-
-    # 時間ごとの色を辞書化
-    color_map = {t: c for t, c in data}
-
-    # 1分単位でループ（白がデフォルト）
-    current = range_start
-    times, colors = [], []
-    while current < range_end:
-        next_time = current + timedelta(minutes=1)
-        color = color_map.get(current, None)
-        if color is None:
-            # データなし: 白色（描画しない）
-            pass
-        elif color == "gray":
-            # 不明: 灰色で表示
-            times.append(current)
-            colors.append("gray")
-        else:
-            # 通常の色
-            times.append(current)
-            colors.append(color)
-        current = next_time
-
-    # 描画
-    plt.figure(figsize=(14, 2))
-    for i in range(len(times)):
-        left = (times[i] - range_start).total_seconds()
-        plt.barh(0, 60, left=left, color=colors[i], height=0.5)
-
-    # 横軸: 1時間ごと、水平に表示
-    xticks = []
-    xticklabels = []
-    hour = range_start
-    while hour <= range_end:
-        xticks.append((hour - range_start).total_seconds())
-        xticklabels.append(hour.strftime("%H:%M"))
-        hour += timedelta(hours=1)
-
-    plt.xticks(xticks, xticklabels, rotation=0)  # 水平表示
-    plt.yticks([])
-    plt.xlim(0, (range_end - range_start).total_seconds())
-    plt.title(f"{date} 状態推移グラフ")
-    plt.tight_layout()
-
-    os.makedirs("static", exist_ok=True)
-    if os.path.exists(image_path):
-        os.remove(image_path)
-    plt.savefig(image_path)
-    plt.close()
+    if not os.path.exists(image_path):
+        abort(400, description="グラフ画像の生成に失敗しました。")
 
     return render_template("graph.html", date=date, image_filename=image_filename)
-
     
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
