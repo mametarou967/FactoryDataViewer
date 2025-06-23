@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ year_month }} - 月間状態集計</title>
+</head>
+<body>
+    <h2>{{ year_month }} 日別稼働時間（単位: 時間）</h2>
+    <a href="/">HOME</a> |
+    <a href="/month/{{ year_month }}/graph">日別グラフ表示</a> |
+    <a href="/month/{{ year_month }}/summary">日別稼働時間集計表示</a>
+
+    {% if labels %}
+    <table border="1">
+        <tr>
+            <th>状態</th>
+            {% for label in labels %}
+                <th>{{ label[5:] }}</th>
+            {% endfor %}
+        </tr>
+        {% for state in states %}
+        <tr>
+            <td>
+                {% if state == "加工中" %}加工中（緑）
+                {% elif state == "加工完了" %}加工完了（黄）
+                {% elif state == "設備停止／アラーム" %}設備停止／アラーム（赤）
+                {% elif state == "加工終了／設備停止" %}加工終了／設備停止（橙）
+                {% elif state == "加工中／軽微なアラーム" %}加工中／軽微なアラーム（紫）
+                {% else %}不明（灰）
+                {% endif %}
+            </td>
+            {% for val in summaries[state] %}
+                <td>{{ val }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+        <p>この月の有効なデータが見つかりませんでした。</p>
+    {% endif %}
+
+    <p><a href="/">戻る</a></p>
+</body>
+</html>

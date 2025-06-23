@@ -28,12 +28,13 @@
     </style>
 </head>
 <body>
-    <h2>{{ date }} のライト状態</h2>
+    <h2>{{ date }} の状態表示</h2>
     <p>
         <a href="/">HOME</a> |
-        <a href="/date/{{ date }}/table">データ表示</a> |
+        <a href="/date/{{ date }}/graph">グラフ表示</a> |
+        <a href="/date/{{ date }}/summary">稼働時間集計表示</a> |
         <a href="/date/{{ date }}/status">状態表示</a> |
-        <a href="/date/{{ date }}/graph">グラフ表示</a>
+        <a href="/date/{{ date }}/table">データ表示</a>
     </p>
     <table>
         <thead>

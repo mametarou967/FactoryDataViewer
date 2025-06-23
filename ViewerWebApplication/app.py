@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import matplotlib.font_manager as fm
+from collections import defaultdict
 
 app = Flask(__name__)
 DATA_DIR = "data"
@@ -241,6 +242,56 @@ def show_month_graph(year_month):
     return render_template("month_graph.html", year_month=year_month, images=images)
 
 
+@app.route("/month/<year_month>/summary")
+def show_month_summary(year_month):
+    print("hello")
+    try:
+        target_month = datetime.strptime(year_month, "%Y-%m")
+    except ValueError:
+        abort(404)
+
+    states = ["加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
+    summaries = {state: [] for state in states}
+    labels = []
+
+    # 存在する .csv の中で該当月のものだけを処理
+    for fname in sorted(os.listdir(DATA_DIR)):
+        print(fname)
+        if not fname.endswith(".csv"):
+            continue
+        try:
+            date_obj = datetime.strptime(fname[:-4], "%Y-%m-%d")
+        except ValueError:
+            continue
+
+        if date_obj.strftime("%Y-%m") != year_month:
+            continue
+
+        labels.append(date_obj.strftime("%Y-%m-%d"))
+        filepath = os.path.join(DATA_DIR, fname)
+        durations = {state: 0 for state in states}
+
+        print(filepath)
+        with open(filepath, newline='', encoding='utf-8') as f:
+            for row in csv.reader(f):
+                if len(row) < 5:
+                    continue
+                try:
+                    r, y, g = float(row[1]), float(row[2]), float(row[3])
+                    _, state, _ = get_light_status(r, y, g)
+                    durations[state] += 60
+                except:
+                    continue
+
+        for state in states:
+            summaries[state].append(round(durations[state] / 3600, 2))
+
+    # データが1件もない場合はabort
+    if not labels:
+        abort(404, description="指定された月にデータが見つかりませんでした")
+
+    return render_template("month_summary.html", year_month=year_month, states=states, labels=labels, summaries=summaries)
+
 @app.route("/date/<date>/table")
 def show_table(date):
     filename = f"{date}.csv"
@@ -297,6 +348,31 @@ def show_graph(date):
         abort(400, description="グラフ画像の生成に失敗しました。")
 
     return render_template("graph.html", date=date, image_filename=image_filename)
-    
+
+@app.route("/date/<date>/summary")
+def show_day_summary(date):
+    filepath = os.path.join(DATA_DIR, f"{date}.csv")
+    if not os.path.exists(filepath):
+        abort(404)
+
+    states = ["加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
+    durations = {state: 0 for state in states}
+
+    with open(filepath, newline='', encoding='utf-8') as f:
+        for row in csv.reader(f):
+            if len(row) < 5:
+                continue
+            try:
+                r, y, g = float(row[1]), float(row[2]), float(row[3])
+                _, state, _ = get_light_status(r, y, g)
+                durations[state] += 60  # assuming 1 minute resolution
+            except:
+                continue
+
+    for key in durations:
+        durations[key] = round(durations[key] / 3600, 2)
+
+    return render_template("summary.html", date=date, durations=durations)
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
