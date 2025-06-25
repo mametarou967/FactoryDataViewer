@@ -80,6 +80,13 @@ def generate_graph_image(date):
     if not os.path.exists(csv_path):
         return
 
+    # CSVの方が新しければ再生成、そうでなければスキップ
+    if os.path.exists(image_path):
+        csv_mtime = os.path.getmtime(csv_path)
+        image_mtime = os.path.getmtime(image_path)
+        if csv_mtime <= image_mtime:
+            return  # 画像が最新なので生成しない
+
     font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
     if os.path.exists(font_path):
         plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
@@ -227,8 +234,7 @@ def show_month_graph(year_month):
 
         # 存在するCSVファイルについてのみ描画
         if os.path.exists(csv_path):
-            if not os.path.exists(image_path):  # グラフ未生成なら生成
-                generate_graph_image(date_str)
+            generate_graph_image(date_str)
             images.append({
                 "date": date_str,
                 "image_filename": image_filename
@@ -341,8 +347,7 @@ def show_graph(date):
         abort(404)
 
     # グラフ生成（既存ならスキップ）
-    if not os.path.exists(image_path):
-        generate_graph_image(date)
+    generate_graph_image(date)
 
     if not os.path.exists(image_path):
         abort(400, description="グラフ画像の生成に失敗しました。")
