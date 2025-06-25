@@ -90,7 +90,7 @@ def generate_graph_image(date):
             if len(row) < 5:
                 continue
             try:
-                t = datetime.strptime(row[0], "%H:%M:%S")
+                t = datetime.strptime(date + " " + row[0], "%Y-%m-%d %H:%M:%S")  # 修正: 時間だけでなく日付と結合
                 r, y, g = float(row[1]), float(row[2]), float(row[3])
                 _, _, color = get_light_status(r, y, g)
                 data.append((t, color))
@@ -109,7 +109,7 @@ def generate_graph_image(date):
     times, colors = [], []
     while current < range_end:
         next_time = current + timedelta(minutes=1)
-        color = color_map.get(current.time(), None)
+        color = color_map.get(current, None)  # 修正: current.time() → current
         if color is None:
             pass
         elif color == "gray":
