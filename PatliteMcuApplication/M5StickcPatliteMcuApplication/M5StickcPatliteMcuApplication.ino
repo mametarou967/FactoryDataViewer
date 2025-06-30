@@ -33,6 +33,8 @@ void setup() {
         YELLOW);  // Set the font color to yellow.  设置字体颜色为黄色
     M5.Lcd.setRotation(3);
     
+    M5.Lcd.print("wake up");
+    Serial.print("wake up");
     delay(3000); // 少しだけ画面
 // #define CONTINUOUSLY_H_RESOLUTION_MODE  B00010000を表示しておく
     selectChannel(0);
@@ -67,14 +69,14 @@ void measureLUX()
   M5.Lcd.print("measure:start");
   Serial.print("measure:start");
   selectChannel(0);
-  value1 = getLUX(0x23);
+  value1 = getLUX(0x23,1500000); // 1.5秒間連続で取得して最大のLUXを通知
   selectChannel(1);
-  value2 = getLUX(0x23);
+  value2 = getLUX(0x23,1500000);
   selectChannel(2);
-  value3 = getLUX(0x23);
+  value3 = getLUX(0x23,1500000);
   M5.Lcd.println("end");
   Serial.println("end");
-  M5.Lcd.setTextSize(3);
+  M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(RED);
   M5.Lcd.print("DLT1:");
   Serial.print("DLT1:");
@@ -117,12 +119,41 @@ void setMode(uint8_t addr,byte mode) {
     writeByte(addr,mode);
 }
 
-uint16_t getLUX(uint8_t addr) {
-    uint16_t lux;
-    uint8_t buffer[2];
+uint16_t getLUX(uint8_t addr,long getTermMicroSec) {
+  ;
+  uint8_t buffer[2];
+  uint16_t max_lux = 0;
+  unsigned long loopStartTime = 0;
+  int loop_cnt = 0;
+
+  loopStartTime = micros();
+
+  Serial.println("getLUX start:");
+
+  while(1)
+  {
+    Serial.print(loop_cnt);
+
     readBytes(addr,buffer, 2);
-    lux = buffer[0] << 8 | buffer[1];
-    return lux / 1.2;
+    uint16_t lux_tmp = buffer[0] << 8 | buffer[1];
+    uint16_t lux = lux_tmp / 1.2;
+    if(lux > max_lux)
+    {
+      max_lux = lux;
+    }
+
+    if(labs(micros() - loopStartTime) > getTermMicroSec)
+    {
+      // 指定時間経過したら計測をやめる
+      break;
+    }
+
+    loop_cnt++;
+  }
+  Serial.println("getLUX end");
+
+
+  return max_lux;
 }
 
 void readBytes(uint8_t addr,uint8_t *buffer, size_t size) {
