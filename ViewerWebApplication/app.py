@@ -14,9 +14,9 @@ DATA_DIR = "data"
 
 # 点灯/消灯の閾値
 THRESHOLDS = {
-    "red": 30,
-    "yellow": 100,
-    "green": 50
+    "red": 200,
+    "yellow": 200,
+    "green": 200
 }
 
 # 点灯・状態判定
