@@ -108,8 +108,8 @@ def generate_graph_image(date):
         return
 
     base_date = datetime.strptime(date, "%Y-%m-%d")
-    range_start = datetime.combine(base_date, datetime.strptime("08:00:00", "%H:%M:%S").time())
-    range_end = datetime.combine(base_date, datetime.strptime("21:00:00", "%H:%M:%S").time())
+    range_start = datetime.combine(base_date, datetime.strptime("00:00:00", "%H:%M:%S").time())
+    range_end = datetime.combine(base_date + timedelta(days=1), datetime.strptime("00:00:00", "%H:%M:%S").time())
 
     color_map = {t: c for t, c in data}
     current = range_start
@@ -137,7 +137,11 @@ def generate_graph_image(date):
     hour = range_start
     while hour <= range_end:
         xticks.append((hour - range_start).total_seconds())
-        xticklabels.append(hour.strftime("%H:%M"))
+        # 最後のラベルだけ特別に「24:00」にする
+        if hour == range_end:
+            xticklabels.append("24:00")
+        else:
+            xticklabels.append(hour.strftime("%H:%M"))
         hour += timedelta(hours=1)
 
     plt.xticks(xticks, xticklabels, rotation=0)
