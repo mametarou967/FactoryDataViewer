@@ -59,7 +59,7 @@
     </style>
 </head>
 <body>
-    <h2>現在のライト状態</h2>
+    <h2>現在のライト/電流状態</h2>
 
     {% if status %}
         <div class="light {{ 'on-red' if status.red == '点灯' else 'off-red' }}">
@@ -71,6 +71,7 @@
         <div class="light {{ 'on-green' if status.green == '点灯' else 'off-green' }}">
             {{ status.green }}
         </div>
+        <p>電流値：{{ status.current }} A</p>
         <p>データ取得時刻：{{ status.timestamp }}</p>
     {% else %}
         <p>利用可能なデータがありません（過去5分以内）</p>
@@ -120,8 +121,9 @@
     </div>
     
     <h2>閾値設定</h2>
-    <p>赤: {{ thresholds.red }}ルクス より大きい場合、点灯判定</p>
-    <p>黄: {{ thresholds.yellow }}ルクス より大きい場合、点灯判定</p>
-    <p>緑: {{ thresholds.green }}ルクス より大きい場合、点灯判定</p>
+    <p>パトライト赤: {{ thresholds.red }}ルクス より大きい場合、点灯判定</p>
+    <p>パトライト黄: {{ thresholds.yellow }}ルクス より大きい場合、点灯判定</p>
+    <p>パトライト緑: {{ thresholds.green }}ルクス より大きい場合、点灯判定</p>
+    <p>機械動作: 電源電流 {{ current_threshold }}A より大きい場合、動作判定</p>
 </body>
 </html>

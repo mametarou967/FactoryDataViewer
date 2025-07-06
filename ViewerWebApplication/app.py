@@ -85,6 +85,7 @@ def get_latest_data():
                         "red": float(row[1]),
                         "yellow": float(row[2]),
                         "green": float(row[3]),
+                        "current": float(row[4]),
                         "timestamp": row_time.strftime("%Y-%m-%d %H:%M:%S")
                     }
     return None
@@ -179,8 +180,8 @@ def index():
     latest = get_latest_data()
     status = {}
     if latest:
-        lights, _, _ = get_light_status(latest["red"], latest["yellow"], latest["green"])
-        status = {**lights, "timestamp": latest["timestamp"]}
+        lights, _, _, _ = get_light_status(latest["red"], latest["yellow"], latest["green"], latest["current"])
+        status = {**lights, "current": latest["current"], "timestamp": latest["timestamp"]}
     # 年度判定（4月～翌年3月）
     now = datetime.now()
     if now.month >= 4:
@@ -228,7 +229,7 @@ def index():
 
         current += timedelta(days=1)
 
-    return render_template("index.html", status=status if latest else None, thresholds=THRESHOLDS, calendar=calendar)
+    return render_template("index.html", status=status if latest else None, thresholds=THRESHOLDS, current_threshold = CURRENT_THRESHOLD, calendar=calendar)
 
 
 @app.route("/month/<year_month>/graph")
