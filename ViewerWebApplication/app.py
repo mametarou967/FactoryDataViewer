@@ -18,9 +18,10 @@ THRESHOLDS = {
     "yellow": 200,
     "green": 200
 }
+CURRENT_THRESHOLD = 3.0
 
 # 点灯・状態判定
-def get_light_status(red, yellow, green):
+def get_light_status(red, yellow, green, current):
     def is_on(color, value):
         return value >= THRESHOLDS[color]
 
@@ -30,20 +31,36 @@ def get_light_status(red, yellow, green):
         "green": "点灯" if is_on("green", green) else "消灯"
     }
 
-    # 状態と色
-    state, color = "不明", "gray"
-    if status["green"] == "点灯" and status["red"] == "消灯" and status["yellow"] == "消灯":
-        state, color = "加工中", "green"
-    elif status["yellow"] == "点灯" and status["red"] == "消灯" and status["green"] == "消灯":
-        state, color = "加工完了", "yellow"
-    elif status["red"] == "点灯" and status["yellow"] == "消灯" and status["green"] == "消灯":
-        state, color = "設備停止／アラーム", "red"
-    elif status["red"] == "点灯" and status["yellow"] == "点灯" and status["green"] == "消灯":
-        state, color = "加工終了／設備停止", "orange"
-    elif status["red"] == "点灯" and status["green"] == "点灯" and status["yellow"] == "消灯":
-        state, color = "加工中／軽微なアラーム", "purple"
+    machine_action = "加工中" if current >= CURRENT_THRESHOLD else "加工なし"
 
-    return status, state, color
+    # 状態判定
+    state, color = "不明", "gray"  # 色なし
+    r, y, g, m = status["red"], status["yellow"], status["green"], machine_action
+
+    if r == "消灯" and y == "消灯" and g == "消灯":
+        state, color = "不明", "gray"
+    elif r == "消灯" and y == "消灯" and g == "点灯":
+        state, color = "加工中", "green"
+    elif r == "消灯" and y == "点灯" and g == "消灯" and m == "加工なし":
+        state, color = "加工完了", "yellow"
+    elif r == "消灯" and y == "点灯" and g == "消灯" and m == "加工中":
+        state, color = "手動加工中", "blue"
+    elif r == "消灯" and y == "点灯" and g == "点灯":
+        state, color = "加工中", "green"
+    elif r == "点灯" and y == "消灯" and g == "消灯" and m == "加工なし":
+        state, color = "設備停止／アラーム", "red"
+    elif r == "点灯" and y == "消灯" and g == "消灯" and m == "加工中":
+        state, color = "手動加工中", "blue"
+    elif r == "点灯" and y == "消灯" and g == "点灯":
+        state, color = "加工中", "green"
+    elif r == "点灯" and y == "点灯" and g == "消灯" and m == "加工なし":
+        state, color = "加工終了／設備停止", "orange"
+    elif r == "点灯" and y == "点灯" and g == "消灯" and m == "加工中":
+        state, color = "手動加工中", "blue"
+    elif r == "点灯" and y == "点灯" and g == "点灯":
+        state, color = "加工中", "green"
+
+    return status, machine_action, state, color
 
 # 最新データ取得
 def get_latest_data():
@@ -333,11 +350,16 @@ def show_status_table(date):
         for row in csv.reader(f):
             if len(row) < 5:
                 continue
-            red, yellow, green = float(row[1]), float(row[2]), float(row[3])
-            lights, state, color = get_light_status(red, yellow, green)
+            red, yellow, green, current = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+            lights, machine_action, state, color = get_light_status(red, yellow, green, current)
             rows.append({
-                "time": row[0], "red": lights["red"], "yellow": lights["yellow"],
-                "green": lights["green"], "state": state, "color": color
+                "time": row[0],
+                "red": lights["red"],
+                "yellow": lights["yellow"],
+                "green": lights["green"],
+                "machine_action": machine_action,
+                "state": state,
+                "color": color
             })
     return render_template("status_table.html", date=date, rows=rows)
 
