@@ -115,8 +115,8 @@ def generate_graph_image(date):
                 continue
             try:
                 t = datetime.strptime(date + " " + row[0], "%Y-%m-%d %H:%M:%S")  # 修正: 時間だけでなく日付と結合
-                r, y, g = float(row[1]), float(row[2]), float(row[3])
-                _, _, color = get_light_status(r, y, g)
+                r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                _, _, _, color = get_light_status(r, y, g, c)
                 data.append((t, color))
             except:
                 continue
