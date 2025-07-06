@@ -277,7 +277,7 @@ def show_month_summary(year_month):
     except ValueError:
         abort(404)
 
-    states = ["加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
+    states = ["加工中", "手動加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
     summaries = {state: [] for state in states}
     labels = []
 
@@ -304,8 +304,8 @@ def show_month_summary(year_month):
                 if len(row) < 5:
                     continue
                 try:
-                    r, y, g = float(row[1]), float(row[2]), float(row[3])
-                    _, state, _ = get_light_status(r, y, g)
+                    r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                    _, _, state, _ = get_light_status(r, y, g, c)
                     durations[state] += 60
                 except:
                     continue
@@ -386,7 +386,7 @@ def show_day_summary(date):
     if not os.path.exists(filepath):
         abort(404)
 
-    states = ["加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
+    states = ["加工中", "手動加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
     durations = {state: 0 for state in states}
 
     with open(filepath, newline='', encoding='utf-8') as f:
@@ -394,8 +394,8 @@ def show_day_summary(date):
             if len(row) < 5:
                 continue
             try:
-                r, y, g = float(row[1]), float(row[2]), float(row[3])
-                _, state, _ = get_light_status(r, y, g)
+                r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                _, _, state, _ = get_light_status(r, y, g, c)
                 durations[state] += 60  # assuming 1 minute resolution
             except:
                 continue
