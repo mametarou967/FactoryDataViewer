@@ -36,28 +36,38 @@ def get_light_status(red, yellow, green, current):
     # 状態判定
     state, color = "不明", "gray"  # 色なし
     r, y, g, m = status["red"], status["yellow"], status["green"], machine_action
-
-    if r == "消灯" and y == "消灯" and g == "消灯":
+    
+    if r == "消灯" and y == "消灯" and g == "消灯" and m == "加工なし":
         state, color = "不明", "gray"
-    elif r == "消灯" and y == "消灯" and g == "点灯":
+    elif r == "消灯" and y == "消灯" and g == "点灯" and m == "加工なし":
         state, color = "加工中", "green"
     elif r == "消灯" and y == "点灯" and g == "消灯" and m == "加工なし":
         state, color = "加工完了", "yellow"
-    elif r == "消灯" and y == "点灯" and g == "消灯" and m == "加工中":
-        state, color = "手動加工中", "blue"
-    elif r == "消灯" and y == "点灯" and g == "点灯":
+    elif r == "消灯" and y == "点灯" and g == "点灯" and m == "加工なし":
         state, color = "加工中", "green"
     elif r == "点灯" and y == "消灯" and g == "消灯" and m == "加工なし":
-        state, color = "設備停止／アラーム", "red"
-    elif r == "点灯" and y == "消灯" and g == "消灯" and m == "加工中":
-        state, color = "手動加工中", "blue"
-    elif r == "点灯" and y == "消灯" and g == "点灯":
+        state, color = "アラーム", "red"
+    elif r == "点灯" and y == "消灯" and g == "点灯" and m == "加工なし":
         state, color = "加工中", "green"
     elif r == "点灯" and y == "点灯" and g == "消灯" and m == "加工なし":
-        state, color = "加工終了／設備停止", "orange"
+        state, color = "加工完了", "yellow"
+    elif r == "点灯" and y == "点灯" and g == "点灯" and m == "加工なし":
+        state, color = "加工中", "green"
+    elif r == "消灯" and y == "消灯" and g == "消灯" and m == "加工中":
+        state, color = "手動加工中", "blue"
+    elif r == "消灯" and y == "消灯" and g == "点灯" and m == "加工中":
+        state, color = "加工中", "green"
+    elif r == "消灯" and y == "点灯" and g == "消灯" and m == "加工中":
+        state, color = "手動加工中", "blue"
+    elif r == "消灯" and y == "点灯" and g == "点灯" and m == "加工中":
+        state, color = "加工中", "green"
+    elif r == "点灯" and y == "消灯" and g == "消灯" and m == "加工中":
+        state, color = "手動加工中", "blue"
+    elif r == "点灯" and y == "消灯" and g == "点灯" and m == "加工中":
+        state, color = "加工中", "green"
     elif r == "点灯" and y == "点灯" and g == "消灯" and m == "加工中":
         state, color = "手動加工中", "blue"
-    elif r == "点灯" and y == "点灯" and g == "点灯":
+    elif r == "点灯" and y == "点灯" and g == "点灯" and m == "加工中":
         state, color = "加工中", "green"
 
     return status, machine_action, state, color
@@ -278,7 +288,7 @@ def show_month_summary(year_month):
     except ValueError:
         abort(404)
 
-    states = ["加工中", "手動加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
+    states = ["加工中", "手動加工中", "加工完了", "アラーム", "不明"]
     summaries = {state: [] for state in states}
     labels = []
 
@@ -387,7 +397,7 @@ def show_day_summary(date):
     if not os.path.exists(filepath):
         abort(404)
 
-    states = ["加工中", "手動加工中", "加工完了", "設備停止／アラーム", "加工終了／設備停止", "加工中／軽微なアラーム", "不明"]
+    states = ["加工中", "手動加工中", "加工完了", "アラーム", "不明"]
     durations = {state: 0 for state in states}
 
     with open(filepath, newline='', encoding='utf-8') as f:
