@@ -101,6 +101,45 @@ def get_latest_data():
                     }
     return None
 
+def read_hinmoku_csv(date_str):
+    """
+    品目CSV: data/hinmoku/A214_YYYYMMDD_.csv を読み、(headers, rows) を返す。
+    rows は 1行=リスト。1行目は見出し。
+    文字コードは cp932 優先、失敗時に utf-8 にフォールバック。
+    """
+    yyyymmdd = datetime.strptime(date_str, "%Y-%m-%d").strftime("%Y%m%d")
+    expected_name = f"A214_{yyyymmdd}_.csv"
+    dirpath = os.path.join(DATA_DIR, HINMOKU_SUBDIR)
+    filepath = os.path.join(dirpath, expected_name)
+
+    if not os.path.isdir(dirpath) or not os.path.exists(filepath):
+        return None, None, expected_name  # 見つからない
+
+    rows = []
+    # cp932 -> utf-8 の順でトライ
+    tried_encodings = ["cp932", "utf-8"]
+    last_err = None
+    for enc in tried_encodings:
+        try:
+            with open(filepath, newline="", encoding=enc) as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if row:
+                        rows.append(row)
+            break
+        except Exception as e:
+            rows = []
+            last_err = e
+            continue
+
+    if not rows:
+        # 空 or 読めない
+        return None, None, expected_name
+
+    headers = rows[0]
+    records = rows[1:]
+    return headers, records, expected_name
+
 def generate_graph_image(date):
     csv_path = os.path.join(DATA_DIR, f"{date}.csv")
     image_filename = f"{date}_graph.png"
@@ -184,6 +223,85 @@ def generate_graph_image(date):
         os.remove(image_path)
     plt.savefig(image_path)
     plt.close()
+
+def generate_graph_image_for_interval(date_str, start_dt, end_dt, out_png_path):
+    """
+    data/<date>.csv を読み、全日タイムライン上で start_dt〜end_dt の区間のみ
+    既存ルールの色（get_light_status）で色を付ける横棒グラフを生成。
+    それ以外の時間帯は描画しない（=空白）。
+    """
+    csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
+    if not os.path.exists(csv_path):
+        return False
+
+    # 1日範囲
+    base_date = datetime.strptime(date_str, "%Y-%m-%d")
+    range_start = datetime.combine(base_date, datetime.strptime("00:00:00", "%H:%M:%S").time())
+    range_end = range_start + timedelta(days=1)
+
+    # 1分解像度で色を決めるため、CSVを読み込む（UTF-8想定）
+    # row = [time, red, yellow, green, current]
+    # time 例: "08:46:00"
+    minute_color = {}  # key: datetime（各分の先頭）, val: color(str)
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        for row in csv.reader(f):
+            if len(row) < 5:
+                continue
+            try:
+                t = datetime.strptime(date_str + " " + row[0], "%Y-%m-%d %H:%M:%S")
+                red, yellow, green, current = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                # 既存 get_light_status は4値返す: (status_dict, machine_action, state, color)
+                _, _, _, color = get_light_status(red, yellow, green, current)
+                # 対象区間のみ色づけ
+                if start_dt <= t < end_dt:
+                    minute_color[t] = color
+            except Exception:
+                continue
+
+    # 何も色づけできなければ終了
+    if not minute_color:
+        return False
+
+    # グラフ生成（1日横棒。色がある minute のみ描画）
+    font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
+    if os.path.exists(font_path):
+        plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
+
+    plt.figure(figsize=(14, 2))
+
+    current = range_start
+    while current < range_end:
+        if current in minute_color:
+            left = (current - range_start).total_seconds()
+            plt.barh(0, 60, left=left, height=0.5)  # 色指定はしない（既定色）。必要なら色付け可
+            # ※「区間だけ色を付け、それ以外は空白」という要件なので、
+            #    対象分だけ描画。色は matplotlib 既定でOK（色を付けたい場合は color=minute_color[current]）
+            #    ただし minute_color[current] は "green"/"red"/"yellow"/"blue"/"orange"/"gray" など。
+            #    カラーマップに合わせたい場合はコメントアウト外してください:
+            #
+            # plt.barh(0, 60, left=left, height=0.5, color=minute_color[current])
+        current += timedelta(minutes=1)
+
+    # 目盛り（毎時）
+    xticks, xticklabels = [], []
+    hour = range_start
+    while hour <= range_end:
+        xticks.append((hour - range_start).total_seconds())
+        xticklabels.append("24:00" if hour == range_end else hour.strftime("%H:%M"))
+        hour += timedelta(hours=1)
+
+    plt.xticks(xticks, xticklabels)
+    plt.yticks([])
+    plt.xlim(0, (range_end - range_start).total_seconds())
+    plt.title(f"{date_str} 品目時間帯グラフ（{start_dt.strftime('%H:%M')}〜{end_dt.strftime('%H:%M')}）")
+    plt.tight_layout()
+
+    os.makedirs("static", exist_ok=True)
+    if os.path.exists(out_png_path):
+        os.remove(out_png_path)
+    plt.savefig(out_png_path)
+    plt.close()
+    return True
 
 
 @app.route("/")
@@ -420,23 +538,16 @@ def show_day_summary(date):
 @app.route("/date/<date>/hinmoku")
 def show_hinmoku_for_date(date):
     """
-    指定日付(YYYY-MM-DD)の A214_YYYYMMDD_.csv を data/hinmoku/ から探して表示。
-    見つからなければ「品目リストはありません」。
+    指定日付の品目一覧（行頭に 1..N の行番号列を追加＆リンク化）
     """
     # 日付バリデーション
     try:
-        dt = datetime.strptime(date, "%Y-%m-%d")
+        datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
         abort(404)
 
-    yyyymmdd = dt.strftime("%Y%m%d")
-    expected_name = f"A214_{yyyymmdd}_.csv"
-
-    dirpath = os.path.join(DATA_DIR, HINMOKU_SUBDIR)
-    filepath = os.path.join(dirpath, expected_name)
-
-    # ディレクトリorファイルの有無確認
-    if not os.path.isdir(dirpath) or not os.path.exists(filepath):
+    headers, records, filename = read_hinmoku_csv(date)
+    if not headers or records is None:
         return render_template(
             "hinmoku.html",
             has_data=False,
@@ -444,35 +555,70 @@ def show_hinmoku_for_date(date):
             message="品目リストはありません"
         )
 
-    # CSV読み込み（1行目: ヘッダ、9列想定だが列数はそのまま表示）
-    rows = []
-    with open(filepath, newline='', encoding='cp932') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            if not row:
-                continue
-            rows.append(row)
+    # 先頭に「#」列を追加したヘッダ
+    display_headers = ["#"] + headers
 
-    if not rows:
-        return render_template(
-            "hinmoku.html",
-            has_data=False,
-            date=date,
-            message="品目リストはありません"
-        )
-
-    headers = rows[0]
-    records = rows[1:]
+    # 行番号を付与（1始まり）。リンク先は /date/<date>/hinmoku/<idx>
+    # テンプレ側でリンクを生成するため、ここではインデックスのみ渡す
+    indexed_records = []
+    for i, row in enumerate(records, start=1):
+        indexed_records.append((i, row))  # (行番号, 元の行)
 
     return render_template(
         "hinmoku.html",
         has_data=True,
         date=date,
-        headers=headers,
-        records=records,
-        filename=expected_name
+        headers=display_headers,
+        records=indexed_records,
+        filename=filename
     )
 
+@app.route("/date/<date>/hinmoku/<int:hinmokuno>")
+def show_hinmoku_graph(date, hinmokuno):
+    """
+    指定行(hinmokuno: 1始まり)の「着手日時〜完了日時」だけ色が付いた1日グラフを生成・表示。
+    """
+    # 日付バリデーション
+    try:
+        base_dt = datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        abort(404)
+
+    headers, records, filename = read_hinmoku_csv(date)
+    if not headers or not records:
+        abort(404, description="品目リストがありません。")
+
+    if hinmokuno < 1 or hinmokuno > len(records):
+        abort(404, description="指定の品目番号が範囲外です。")
+
+    row = records[hinmokuno - 1]
+    # 想定列：
+    # 0:機械番号 1:製番 2:品目番号 3:品目名 4:手配数 5:段取時間 6:加工時間 7:着手日時 8:完了日時
+    try:
+        start_raw = row[7].strip()
+        end_raw   = row[8].strip()
+        # 例: "2025/8/4 8:46" → "%Y/%m/%d %H:%M" でパース（0詰め無しにも対応）
+        start_dt = datetime.strptime(start_raw, "%Y/%m/%d %H:%M")
+        end_dt   = datetime.strptime(end_raw,   "%Y/%m/%d %H:%M")
+    except Exception:
+        abort(400, description="着手日時/完了日時の形式が不正です。")
+
+    # 画像生成
+    image_filename = f"{date}_hinmoku_{hinmokuno}.png"
+    image_path = os.path.join("static", image_filename)
+    ok = generate_graph_image_for_interval(date, start_dt, end_dt, image_path)
+    if not ok:
+        abort(400, description="グラフ画像の生成に失敗しました。対象区間にデータが無い可能性があります。")
+
+    # グラフ表示
+    return render_template(
+        "hinmoku_graph.html",
+        date=date,
+        hinmokuno=hinmokuno,
+        image_filename=image_filename,
+        row=row,
+        headers=headers
+    )
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

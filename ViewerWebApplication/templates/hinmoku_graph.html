@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ date }} 品目 {{ hinmokuno }} の区間グラフ</title>
+</head>
+<body>
+  <h2>{{ date }} 品目 {{ hinmokuno }} の区間グラフ</h2>
+  <p>
+    <a href="/">HOME</a> |
+    <a href="/date/{{ date }}/graph">グラフ表示</a> |
+    <a href="/date/{{ date }}/summary">稼働時間集計表示</a> |
+    <a href="/date/{{ date }}/status">状態表示</a> |
+    <a href="/date/{{ date }}/table">データ表示</a> |
+    <a href="/date/{{ date }}/hinmoku">品目リスト</a>
+  </p>
+
+  <p>
+    対象品目：
+    機械番号={{ row[0] }} ／ 製番={{ row[1] }} ／ 品目番号={{ row[2] }} ／ 品目名={{ row[3] }} <br>
+    手配数={{ row[4] }} ／ 段取時間={{ row[5] }}h ／ 加工時間={{ row[6] }}h <br>
+    着手日時={{ row[7] }} ／ 完了日時={{ row[8] }}
+  </p>
+
+  <img src="/static/{{ image_filename }}" alt="品目区間グラフ" style="width: 100%;">
+</body>
+</html>
