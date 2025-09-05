@@ -19,6 +19,7 @@ THRESHOLDS = {
     "green": 200
 }
 CURRENT_THRESHOLD = 3.0
+HINMOKU_SUBDIR = "hinmoku"  # 品目CSVのサブディレクトリ名（data/hinmoku/）
 
 # 点灯・状態判定
 def get_light_status(red, yellow, green, current):
@@ -415,6 +416,63 @@ def show_day_summary(date):
         durations[key] = round(durations[key] / 3600, 2)
 
     return render_template("summary.html", date=date, durations=durations)
+
+@app.route("/date/<date>/hinmoku")
+def show_hinmoku_for_date(date):
+    """
+    指定日付(YYYY-MM-DD)の A214_YYYYMMDD_.csv を data/hinmoku/ から探して表示。
+    見つからなければ「品目リストはありません」。
+    """
+    # 日付バリデーション
+    try:
+        dt = datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        abort(404)
+
+    yyyymmdd = dt.strftime("%Y%m%d")
+    expected_name = f"A214_{yyyymmdd}_.csv"
+
+    dirpath = os.path.join(DATA_DIR, HINMOKU_SUBDIR)
+    filepath = os.path.join(dirpath, expected_name)
+
+    # ディレクトリorファイルの有無確認
+    if not os.path.isdir(dirpath) or not os.path.exists(filepath):
+        return render_template(
+            "hinmoku.html",
+            has_data=False,
+            date=date,
+            message="品目リストはありません"
+        )
+
+    # CSV読み込み（1行目: ヘッダ、9列想定だが列数はそのまま表示）
+    rows = []
+    with open(filepath, newline='', encoding='cp932') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row:
+                continue
+            rows.append(row)
+
+    if not rows:
+        return render_template(
+            "hinmoku.html",
+            has_data=False,
+            date=date,
+            message="品目リストはありません"
+        )
+
+    headers = rows[0]
+    records = rows[1:]
+
+    return render_template(
+        "hinmoku.html",
+        has_data=True,
+        date=date,
+        headers=headers,
+        records=records,
+        filename=expected_name
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
