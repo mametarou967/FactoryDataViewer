@@ -273,13 +273,8 @@ def generate_graph_image_for_interval(date_str, start_dt, end_dt, out_png_path):
     while current < range_end:
         if current in minute_color:
             left = (current - range_start).total_seconds()
-            plt.barh(0, 60, left=left, height=0.5)  # 色指定はしない（既定色）。必要なら色付け可
-            # ※「区間だけ色を付け、それ以外は空白」という要件なので、
-            #    対象分だけ描画。色は matplotlib 既定でOK（色を付けたい場合は color=minute_color[current]）
-            #    ただし minute_color[current] は "green"/"red"/"yellow"/"blue"/"orange"/"gray" など。
-            #    カラーマップに合わせたい場合はコメントアウト外してください:
-            #
-            # plt.barh(0, 60, left=left, height=0.5, color=minute_color[current])
+            # ★ここを color 指定ありにする（show_graph と同じ色名を使う）
+            plt.barh(0, 60, left=left, height=0.5, color=minute_color[current])
         current += timedelta(minutes=1)
 
     # 目盛り（毎時）
@@ -598,8 +593,8 @@ def show_hinmoku_graph(date, hinmokuno):
         start_raw = row[7].strip()
         end_raw   = row[8].strip()
         # 例: "2025/8/4 8:46" → "%Y/%m/%d %H:%M" でパース（0詰め無しにも対応）
-        start_dt = datetime.strptime(start_raw, "%Y/%m/%d %H:%M")
-        end_dt   = datetime.strptime(end_raw,   "%Y/%m/%d %H:%M")
+        start_dt = datetime.strptime(start_raw, "%Y/%m/%d %H:%M:%S")
+        end_dt   = datetime.strptime(end_raw,   "%Y/%m/%d %H:%M:%S")
     except Exception:
         abort(400, description="着手日時/完了日時の形式が不正です。")
 
