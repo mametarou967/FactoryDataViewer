@@ -140,155 +140,90 @@ def read_hinmoku_csv(date_str):
     records = rows[1:]
     return headers, records, expected_name
 
-def generate_graph_image(date):
-    csv_path = os.path.join(DATA_DIR, f"{date}.csv")
-    image_filename = f"{date}_graph.png"
-    image_path = os.path.join("static", image_filename)
-
-    if not os.path.exists(csv_path):
-        return
-
-    # CSVの方が新しければ再生成、そうでなければスキップ
-    if os.path.exists(image_path):
-        csv_mtime = os.path.getmtime(csv_path)
-        image_mtime = os.path.getmtime(image_path)
-        if csv_mtime <= image_mtime:
-            return  # 画像が最新なので生成しない
-
+def set_japanese_font():
+    """日本語フォント設定（存在すれば適用）"""
     font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
     if os.path.exists(font_path):
         plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
 
-    data = []
+
+def _day_range(date_str):
+    base_date = datetime.strptime(date_str, "%Y-%m-%d")
+    start = datetime.combine(base_date, datetime.strptime("00:00:00", "%H:%M:%S").time())
+    end   = start + timedelta(days=1)
+    return start, end
+
+
+def _load_minute_colors(date_str, start_dt=None, end_dt=None, include_gray=True):
+    """
+    data/<date_str>.csv を読み、分単位の色辞書 {datetime: color} を返す。
+    start_dt/end_dt が指定されれば [start_dt, end_dt) にクリップして格納。
+    include_gray=False の場合は 'gray' を除外。
+    """
+    csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
+    if not os.path.exists(csv_path):
+        return None  # データなし
+
+    day_start, day_end = _day_range(date_str)
+
+    # クリップ（無指定なら一日分）
+    s = max(start_dt, day_start) if start_dt else day_start
+    e = min(end_dt,   day_end)   if end_dt   else day_end
+
+    minute_color = {}
     with open(csv_path, newline='', encoding='utf-8') as f:
         for row in csv.reader(f):
             if len(row) < 5:
                 continue
             try:
-                t = datetime.strptime(date + " " + row[0], "%Y-%m-%d %H:%M:%S")  # 修正: 時間だけでなく日付と結合
-                r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
-                _, _, _, color = get_light_status(r, y, g, c)
-                data.append((t, color))
-            except:
-                continue
-
-    if not data:
-        return
-
-    base_date = datetime.strptime(date, "%Y-%m-%d")
-    range_start = datetime.combine(base_date, datetime.strptime("00:00:00", "%H:%M:%S").time())
-    range_end = datetime.combine(base_date + timedelta(days=1), datetime.strptime("00:00:00", "%H:%M:%S").time())
-
-    color_map = {t: c for t, c in data}
-    current = range_start
-    times, colors = [], []
-    while current < range_end:
-        next_time = current + timedelta(minutes=1)
-        color = color_map.get(current, None)  # 修正: current.time() → current
-        if color is None:
-            pass
-        elif color == "gray":
-            times.append(current)
-            colors.append("gray")
-        else:
-            times.append(current)
-            colors.append(color)
-        current = next_time
-
-    plt.figure(figsize=(14, 2))
-    for i in range(len(times)):
-        left = (times[i] - range_start).total_seconds()
-        plt.barh(0, 60, left=left, color=colors[i], height=0.5)
-
-    xticks = []
-    xticklabels = []
-    hour = range_start
-    while hour <= range_end:
-        xticks.append((hour - range_start).total_seconds())
-        # 最後のラベルだけ特別に「24:00」にする
-        if hour == range_end:
-            xticklabels.append("24:00")
-        else:
-            xticklabels.append(hour.strftime("%H:%M"))
-        hour += timedelta(hours=1)
-
-    plt.xticks(xticks, xticklabels, rotation=0)
-    plt.yticks([])
-    plt.xlim(0, (range_end - range_start).total_seconds())
-    plt.title(f"{date} 状態推移グラフ")
-    plt.tight_layout()
-
-    os.makedirs("static", exist_ok=True)
-    if os.path.exists(image_path):
-        os.remove(image_path)
-    plt.savefig(image_path)
-    plt.close()
-
-def generate_graph_image_for_interval(date_str, start_dt, end_dt, out_png_path):
-    """
-    data/<date>.csv を読み、全日タイムライン上で start_dt〜end_dt の区間のみ
-    既存ルールの色（get_light_status）で色を付ける横棒グラフを生成。
-    それ以外の時間帯は描画しない（=空白）。
-    """
-    csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
-    if not os.path.exists(csv_path):
-        return False
-
-    # 1日範囲
-    base_date = datetime.strptime(date_str, "%Y-%m-%d")
-    range_start = datetime.combine(base_date, datetime.strptime("00:00:00", "%H:%M:%S").time())
-    range_end = range_start + timedelta(days=1)
-
-    # 1分解像度で色を決めるため、CSVを読み込む（UTF-8想定）
-    # row = [time, red, yellow, green, current]
-    # time 例: "08:46:00"
-    minute_color = {}  # key: datetime（各分の先頭）, val: color(str)
-    with open(csv_path, newline="", encoding="utf-8") as f:
-        for row in csv.reader(f):
-            if len(row) < 5:
-                continue
-            try:
                 t = datetime.strptime(date_str + " " + row[0], "%Y-%m-%d %H:%M:%S")
-                red, yellow, green, current = float(row[1]), float(row[2]), float(row[3]), float(row[4])
-                # 既存 get_light_status は4値返す: (status_dict, machine_action, state, color)
-                _, _, _, color = get_light_status(red, yellow, green, current)
-                # 対象区間のみ色づけ
-                if start_dt <= t < end_dt:
-                    minute_color[t] = color
             except Exception:
                 continue
 
-    # 何も色づけできなければ終了
-    if not minute_color:
-        return False
+            # クリップ範囲外は無視
+            if not (s <= t < e):
+                continue
 
-    # グラフ生成（1日横棒。色がある minute のみ描画）
-    font_path = "/usr/share/fonts/truetype/vlgothic/VL-Gothic-Regular.ttf"
-    if os.path.exists(font_path):
-        plt.rcParams["font.family"] = fm.FontProperties(fname=font_path).get_name()
+            try:
+                r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                _, _, _, color = get_light_status(r, y, g, c)
+                if (color == "gray") and (not include_gray):
+                    continue
+                minute_color[t] = color
+            except Exception:
+                continue
+
+    return minute_color
+
+
+def _render_day_timeline(date_str, minute_color, out_png_path, title):
+    """
+    1日横棒を描画。minute_color に入っている分だけ色を塗る。
+    """
+    set_japanese_font()
+    day_start, day_end = _day_range(date_str)
 
     plt.figure(figsize=(14, 2))
-
-    current = range_start
-    while current < range_end:
-        if current in minute_color:
-            left = (current - range_start).total_seconds()
-            # ★ここを color 指定ありにする（show_graph と同じ色名を使う）
-            plt.barh(0, 60, left=left, height=0.5, color=minute_color[current])
+    current = day_start
+    while current < day_end:
+        color = minute_color.get(current)
+        if color:
+            left = (current - day_start).total_seconds()
+            plt.barh(0, 60, left=left, height=0.5, color=color)
         current += timedelta(minutes=1)
 
     # 目盛り（毎時）
     xticks, xticklabels = [], []
-    hour = range_start
-    while hour <= range_end:
-        xticks.append((hour - range_start).total_seconds())
-        xticklabels.append("24:00" if hour == range_end else hour.strftime("%H:%M"))
+    hour = day_start
+    while hour <= day_end:
+        xticks.append((hour - day_start).total_seconds())
+        xticklabels.append("24:00" if hour == day_end else hour.strftime("%H:%M"))
         hour += timedelta(hours=1)
 
     plt.xticks(xticks, xticklabels)
     plt.yticks([])
-    plt.xlim(0, (range_end - range_start).total_seconds())
-    plt.title(f"{date_str} 品目時間帯グラフ（{start_dt.strftime('%H:%M')}〜{end_dt.strftime('%H:%M')}）")
+    plt.xlim(0, (day_end - day_start).total_seconds())
+    plt.title(title)
     plt.tight_layout()
 
     os.makedirs("static", exist_ok=True)
@@ -296,7 +231,75 @@ def generate_graph_image_for_interval(date_str, start_dt, end_dt, out_png_path):
         os.remove(out_png_path)
     plt.savefig(out_png_path)
     plt.close()
+
+
+def generate_graph_image_unified(
+    date_str,
+    start_dt=None,
+    end_dt=None,
+    out_png_path=None,
+    include_gray=True,
+    skip_if_up_to_date=True,
+):
+    """
+    1本化された描画関数。
+    - 日全体: start_dt/end_dt を渡さない
+    - 区間のみ: start_dt/end_dt を渡す（[start_dt, end_dt)）
+    - out_png_path 未指定時はデイリーの既定パスを使う
+    - デイリーはCSVが新しければ再描画、最新ならスキップ（skip_if_up_to_date=True）
+    """
+    csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
+    if not os.path.exists(csv_path):
+        return False
+
+    # 既定の出力先
+    if out_png_path is None:
+        image_filename = f"{date_str}_graph.png"
+        out_png_path = os.path.join("static", image_filename)
+
+    # 「日全体」かつ「最新ならスキップ」だけ最適化
+    is_full_day = (start_dt is None and end_dt is None)
+    if skip_if_up_to_date and is_full_day and os.path.exists(out_png_path):
+        if os.path.getmtime(csv_path) <= os.path.getmtime(out_png_path):
+            return True  # 画像が最新
+
+    # 分ごとの色割り当てを取得
+    minute_color = _load_minute_colors(
+        date_str,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        include_gray=include_gray
+    )
+    if not minute_color:
+        return False
+
+    # タイトル
+    if is_full_day:
+        title = f"{date_str} 状態推移グラフ"
+    else:
+        # 表示は当日内の時刻だけで十分
+        s = start_dt.strftime("%H:%M")
+        e = end_dt.strftime("%H:%M")
+        title = f"{date_str} 品目時間帯グラフ（{s}〜{e}）"
+
+    _render_day_timeline(date_str, minute_color, out_png_path, title)
     return True
+
+def generate_graph_image(date):
+    # 互換ラッパー：そのまま呼ばれても動くように
+    return generate_graph_image_unified(date_str=date)
+
+def generate_graph_image_for_interval(date_str, start_dt, end_dt, out_png_path):
+    # 互換ラッパー：include_gray のデフォルトはこれまでと同じ挙動（灰色も描画）
+    return generate_graph_image_unified(
+        date_str=date_str,
+        start_dt=start_dt,
+        end_dt=end_dt,
+        out_png_path=out_png_path,
+        include_gray=True,
+        # 区間は同じファイル名で上書きする可能性があるので常に再描画を推奨
+        skip_if_up_to_date=False,
+    )
 
 # --- 追記: 柔軟な日時パーサ（秒あり/なしを許容） ---
 def parse_flexible_dt(s):
