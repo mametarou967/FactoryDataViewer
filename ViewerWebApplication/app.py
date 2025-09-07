@@ -11,6 +11,7 @@ from collections import defaultdict
 
 app = Flask(__name__)
 DATA_DIR = "data/sensor"
+HINMOKU_SUBDIR = "../hinmoku"  # 品目CSVのサブディレクトリ名（data/hinmoku/）
 
 # 点灯/消灯の閾値
 THRESHOLDS = {
@@ -19,7 +20,6 @@ THRESHOLDS = {
     "green": 200
 }
 CURRENT_THRESHOLD = 3.0
-HINMOKU_SUBDIR = "hinmoku"  # 品目CSVのサブディレクトリ名（data/hinmoku/）
 
 # 点灯・状態判定
 def get_light_status(red, yellow, green, current):
@@ -470,7 +470,7 @@ def show_month_graph(year_month):
     if not images:
         abort(404)
 
-    return render_template("month_graph.html", year_month=year_month, images=images)
+    return render_template("month/graph.html", year_month=year_month, images=images)
 
 
 @app.route("/month/<year_month>/summary")
@@ -521,7 +521,7 @@ def show_month_summary(year_month):
     if not labels:
         abort(404, description="指定された月にデータが見つかりませんでした")
 
-    return render_template("month_summary.html", year_month=year_month, states=states, labels=labels, summaries=summaries)
+    return render_template("month/summary.html", year_month=year_month, states=states, labels=labels, summaries=summaries)
 
 @app.route("/date/<date>/table")
 def show_table(date):
@@ -541,7 +541,7 @@ def show_table(date):
                 "green": row[3],
                 "current": row[4]
             })
-    return render_template("table.html", date=date, rows=rows)
+    return render_template("date/sensor_data_list.html", date=date, rows=rows)
 
 @app.route("/date/<date>/status")
 def show_status_table(date):
@@ -565,7 +565,7 @@ def show_status_table(date):
                 "state": state,
                 "color": color
             })
-    return render_template("status_table.html", date=date, rows=rows)
+    return render_template("date/status_list.html", date=date, rows=rows)
 
 @app.route("/date/<date>/graph")
 def show_graph(date):
@@ -582,7 +582,7 @@ def show_graph(date):
     if not os.path.exists(image_path):
         abort(400, description="グラフ画像の生成に失敗しました。")
 
-    return render_template("graph.html", date=date, image_filename=image_filename)
+    return render_template("date/graph.html", date=date, image_filename=image_filename)
 
 @app.route("/date/<date>/summary")
 def show_day_summary(date):
@@ -607,7 +607,7 @@ def show_day_summary(date):
     for key in durations:
         durations[key] = round(durations[key] / 3600, 2)
 
-    return render_template("summary.html", date=date, durations=durations)
+    return render_template("date/summary.html", date=date, durations=durations)
 
 @app.route("/date/<date>/hinmoku")
 def show_hinmoku_for_date(date):
@@ -623,7 +623,7 @@ def show_hinmoku_for_date(date):
     headers, records, filename = read_hinmoku_csv(date)
     if not headers or records is None:
         return render_template(
-            "hinmoku.html",
+            "date/hinmoku_list.html",
             has_data=False,
             date=date,
             message="品目リストはありません"
@@ -639,7 +639,7 @@ def show_hinmoku_for_date(date):
         indexed_records.append((i, row))  # (行番号, 元の行)
 
     return render_template(
-        "hinmoku.html",
+        "date/hinmoku_list.html",
         has_data=True,
         date=date,
         headers=display_headers,
@@ -686,7 +686,7 @@ def show_hinmoku_graph(date, hinmokuno):
 
     # グラフ表示
     return render_template(
-        "hinmoku_graph.html",
+        "hinmoku/graph.html",
         date=date,
         hinmokuno=hinmokuno,
         image_filename=image_filename,
@@ -744,7 +744,7 @@ def show_hinmoku_summary(date, hinmokuno):
     }
 
     return render_template(
-        "hinmoku_summary.html",
+        "hinmoku/summary.html",
         date=date,
         hinmokuno=hinmokuno,
         headers=headers,
