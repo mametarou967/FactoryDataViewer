@@ -12,7 +12,9 @@
     <a href="/date/{{ date }}/summary">稼働時間集計表示</a> |
     <a href="/date/{{ date }}/status">状態表示</a> |
     <a href="/date/{{ date }}/table">データ表示</a> |
-    <a href="/date/{{ date }}/hinmoku">品目リスト</a>
+    <a href="/date/{{ date }}/hinmoku">品目リスト</a> |
+    <!-- 追加：この品目の稼働時間集計 -->
+    <a href="/date/{{ date }}/hinmoku/{{ hinmokuno }}/summary">この品目の稼働時間集計</a>
   </p>
 
   <p>
@@ -23,5 +25,10 @@
   </p>
 
   <img src="/static/{{ image_filename }}" alt="品目区間グラフ" style="width: 100%;">
+  
+  <!-- 追加：画像下にも導線を置く（任意） -->
+  <p style="margin-top: 8px;">
+    <a href="/date/{{ date }}/hinmoku/{{ hinmokuno }}/summary">この品目の稼働時間集計を見る</a>
+  </p>
 </body>
 </html>

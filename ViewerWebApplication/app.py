@@ -298,6 +298,85 @@ def generate_graph_image_for_interval(date_str, start_dt, end_dt, out_png_path):
     plt.close()
     return True
 
+# --- 追記: 柔軟な日時パーサ（秒あり/なしを許容） ---
+def parse_flexible_dt(s):
+    """
+    "YYYY/M/D H:M[:S]" 形式（ゼロ詰め無しOK、秒あり/なし両対応）を受け付けて datetime を返す。
+    例: "2025/8/4 8:46", "2025/08/04 08:46:13"
+    """
+    s = s.strip()
+    fmts = [
+        "%Y/%m/%d %H:%M:%S",
+        "%Y/%m/%d %H:%M",
+        "%Y/%-m/%-d %-H:%-M:%-S",  # Linux系のゼロ無し。Windowsでは無視されるが例として残す
+        "%Y/%-m/%-d %-H:%-M",
+    ]
+    for fmt in fmts:
+        try:
+            return datetime.strptime(s, fmt)
+        except Exception:
+            continue
+    # 上の %- 指定は環境依存。最後に標準的な置換で再トライ
+    try:
+        # ゼロ詰めして秒なしをまず試す
+        parts = s.replace("/", " ").replace(":", " ").split()
+        # ["YYYY","M","D","H","M"(,"S")]
+        if len(parts) >= 5:
+            Y, M, D, h, m = parts[:5]
+            sec = parts[5] if len(parts) >= 6 else "00"
+            canon = f"{int(Y):04d}/{int(M):02d}/{int(D):02d} {int(h):02d}:{int(m):02d}:{int(sec):02d}"
+            return datetime.strptime(canon, "%Y/%m/%d %H:%M:%S")
+    except Exception:
+        pass
+    raise ValueError("日時の形式が不正です")
+
+# --- 追記: 区間限定の状態別集計ユーティリティ ---
+def summarize_states_for_interval(date_str, start_dt, end_dt):
+    """
+    data/<date_str>.csv の 1分単位データを読み、[start_dt, end_dt) の区間だけ
+    状態別合計秒数を算出して返す（dict: state -> 秒）。
+    区間が当日の 0:00〜24:00 をはみ出していれば当日内にクリップする。
+    """
+    csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
+    if not os.path.exists(csv_path):
+        return None  # データなし
+
+    base_date = datetime.strptime(date_str, "%Y-%m-%d")
+    day_start = datetime.combine(base_date, datetime.strptime("00:00:00", "%H:%M:%S").time())
+    day_end   = day_start + timedelta(days=1)
+
+    # クリップ
+    s = max(start_dt, day_start)
+    e = min(end_dt,   day_end)
+    if not (s < e):
+        # 重なりなし
+        return {k: 0 for k in ["加工中", "手動加工中", "加工完了", "アラーム", "不明"]}
+
+    states = ["加工中", "手動加工中", "加工完了", "アラーム", "不明"]
+    secs = {state: 0 for state in states}
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        for row in csv.reader(f):
+            if len(row) < 5:
+                continue
+            try:
+                t = datetime.strptime(date_str + " " + row[0], "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                # 時刻列が壊れている行はスキップ
+                continue
+
+            if not (s <= t < e):
+                continue
+
+            try:
+                r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                _, _, state, _ = get_light_status(r, y, g, c)
+                secs[state] += 60  # 1分分加算
+            except Exception:
+                continue
+
+    return secs
+
 
 @app.route("/")
 def index():
@@ -614,6 +693,67 @@ def show_hinmoku_graph(date, hinmokuno):
         row=row,
         headers=headers
     )
+
+# --- 追記: 品目の稼働時間集計（着手〜完了） ---
+@app.route("/date/<date>/hinmoku/<int:hinmokuno>/summary")
+def show_hinmoku_summary(date, hinmokuno):
+    """
+    指定日の品目CSV(data/hinmoku/A214_YYYYMMDD_.csv) から行番号 hinmokuno を取り、
+    その着手日時(7列目)〜完了日時(8列目)の区間に限定して、
+    data/<date>.csv を用いて状態別の合計時間を集計して表示する。
+    """
+    # 日付バリデーション
+    try:
+        base_dt = datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        abort(404)
+
+    headers, records, filename = read_hinmoku_csv(date)
+    if not headers or not records:
+        abort(404, description="品目リストがありません。")
+
+    if hinmokuno < 1 or hinmokuno > len(records):
+        abort(404, description="指定の品目番号が範囲外です。")
+
+    row = records[hinmokuno - 1]
+    # 想定列：0:機械番号 1:製番 2:品目番号 3:品目名 4:手配数 5:段取時間 6:加工時間 7:着手日時 8:完了日時
+    try:
+        start_raw = row[7]
+        end_raw   = row[8]
+        start_dt = parse_flexible_dt(start_raw)
+        end_dt   = parse_flexible_dt(end_raw)
+    except Exception:
+        abort(400, description="着手日時/完了日時の形式が不正です。")
+
+    if end_dt <= start_dt:
+        abort(400, description="完了日時が着手日時以下です。")
+
+    # 区間の状態別集計（当日内に自動クリップ）
+    secs = summarize_states_for_interval(date, start_dt, end_dt)
+    if secs is None:
+        abort(404, description=f"{date}.csv が見つかりません。")
+
+    # 時間に変換（小数2桁）
+    durations_hours = {k: round(v / 3600.0, 2) for k, v in secs.items()}
+
+    # 参考情報
+    interval_info = {
+        "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
+        "end":   end_dt.strftime("%Y/%m/%d %H:%M:%S"),
+        "clipped_date": date  # 当日CSVで集計
+    }
+
+    return render_template(
+        "hinmoku_summary.html",
+        date=date,
+        hinmokuno=hinmokuno,
+        headers=headers,
+        row=row,
+        durations=durations_hours,
+        interval=interval_info,
+        filename=filename
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
