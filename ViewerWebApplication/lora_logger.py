@@ -52,7 +52,12 @@ class LoggerService:
             print(current)
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            filename = f"{date_str}.csv"
+
+            # 保存先ディレクトリを指定
+            base_dir = os.path.join("data", "sensor")
+            os.makedirs(base_dir, exist_ok=True)  # ディレクトリが無ければ作成
+
+            filename = os.path.join(base_dir, f"{date_str}.csv")
             line = [timestamp, red, yellow, green, current]
 
             try:

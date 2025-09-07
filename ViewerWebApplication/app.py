@@ -10,7 +10,7 @@ import matplotlib.font_manager as fm
 from collections import defaultdict
 
 app = Flask(__name__)
-DATA_DIR = "data"
+DATA_DIR = "data/sensor"
 
 # 点灯/消灯の閾値
 THRESHOLDS = {
