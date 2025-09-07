@@ -687,10 +687,13 @@ def show_hinmoku_graph(date, hinmokuno):
     if not ok:
         abort(400, description="グラフ画像の生成に失敗しました。対象区間にデータが無い可能性があります。")
 
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+    
     # グラフ表示
     return render_template(
         "hinmoku/graph.html",
         date=date,
+        year_month=year_month,
         hinmokuno=hinmokuno,
         image_filename=image_filename,
         row=row,
@@ -746,9 +749,12 @@ def show_hinmoku_summary(date, hinmokuno):
         "clipped_date": date  # 当日CSVで集計
     }
 
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+
     return render_template(
         "hinmoku/summary.html",
         date=date,
+        year_month=year_month,
         hinmokuno=hinmokuno,
         headers=headers,
         row=row,

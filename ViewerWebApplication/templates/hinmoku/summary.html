@@ -1,11 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>{{ date }} - 品目 {{ hinmokuno }} の稼働時間集計</title>
-</head>
-<body>
-    <h2>{{ date }} の品目 #{{ hinmokuno }} 稼働時間集計（単位: 時間）</h2>
+{% extends "hinmoku_base.html" %}
+{% block hinmoku_body %}
+  <h2>{{ date }} の品目 #{{ hinmokuno }} 稼働時間集計（単位: 時間）</h2>
 
     <p>
         <a href="/">HOME</a> |
@@ -41,5 +36,4 @@
     </table>
 
     <p><a href="/date/{{ date }}/hinmoku/{{ hinmokuno }}">グラフ表示へ戻る</a></p>
-</body>
-</html>
+{% endblock %}

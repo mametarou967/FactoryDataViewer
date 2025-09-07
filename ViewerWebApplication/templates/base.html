@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}工場ビューア{% endblock %}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 12px; }
+    .topnav { line-height: 1.7; margin: 8px 0 12px; }
+    .topnav .line { margin: 2px 0; }
+    .divider { margin: 0 6px; color: #888; }
+    a { text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="topnav">
+    {% block nav %}{% endblock %}
+  </div>
+
+  {% block content %}{% endblock %}
+</body>
+</html>
