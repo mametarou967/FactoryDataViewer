@@ -670,10 +670,10 @@ def show_hinmoku_graph(date, hinmokuno):
 
     row = records[hinmokuno - 1]
     # 想定列：
-    # 0:機械番号 1:製番 2:品目番号 3:品目名 4:手配数 5:段取時間 6:加工時間 7:着手日時 8:完了日時
+    # 0:機械番号 1:製番 2:手配番号 3:品目番号 4:品目名 5:手配数 6:段取時間 7:加工時間 8:着手日時 9:完了日時
     try:
-        start_raw = row[7].strip()
-        end_raw   = row[8].strip()
+        start_raw = row[8].strip()
+        end_raw   = row[9].strip()
         # 例: "2025/8/4 8:46" → "%Y/%m/%d %H:%M" でパース（0詰め無しにも対応）
         start_dt = datetime.strptime(start_raw, "%Y/%m/%d %H:%M:%S")
         end_dt   = datetime.strptime(end_raw,   "%Y/%m/%d %H:%M:%S")
@@ -722,10 +722,10 @@ def show_hinmoku_summary(date, hinmokuno):
         abort(404, description="指定の品目番号が範囲外です。")
 
     row = records[hinmokuno - 1]
-    # 想定列：0:機械番号 1:製番 2:品目番号 3:品目名 4:手配数 5:段取時間 6:加工時間 7:着手日時 8:完了日時
+    # 0:機械番号 1:製番 2:手配番号 3:品目番号 4:品目名 5:手配数 6:段取時間 7:加工時間 8:着手日時 9:完了日時
     try:
-        start_raw = row[7]
-        end_raw   = row[8]
+        start_raw = row[8]
+        end_raw   = row[9]
         start_dt = parse_flexible_dt(start_raw)
         end_dt   = parse_flexible_dt(end_raw)
     except Exception:
