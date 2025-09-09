@@ -1,14 +1,6 @@
 {% extends "hinmoku_base.html" %}
 {% block hinmoku_body %}
   <h2>{{ date }} の品目 #{{ hinmokuno }} 稼働時間集計（単位: 時間）</h2>
-
-    <p>
-        <a href="/">HOME</a> |
-        <a href="/date/{{ date }}/summary">日別の稼働時間集計</a> |
-        <a href="/date/{{ date }}/hinmoku">品目リスト</a> |
-        <a href="/date/{{ date }}/hinmoku/{{ hinmokuno }}">この品目のグラフ</a>
-    </p>
-
     <h3>対象品目情報</h3>
     <table border="1">
         <tr><th>機械番号</th><td>{{ row[0] }}</td></tr>
