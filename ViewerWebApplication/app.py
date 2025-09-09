@@ -763,6 +763,69 @@ def show_hinmoku_summary(date, hinmokuno):
         filename=filename
     )
 
+# --- 追加: 本日分の手配情報（品目の基本情報を分離表示） ---
+@app.route("/date/<date>/hinmoku/<int:hinmokuno>/info")
+def show_hinmoku_info(date, hinmokuno):
+    """
+    指定日の品目CSV(data/hinmoku/A214_YYYYMMDD_.csv) から行番号 hinmokuno を取り、
+    その着手日時(7列目)〜完了日時(8列目)の区間に限定して、
+    data/<date>.csv を用いて状態別の合計時間を集計して表示する。
+    """
+    # 日付バリデーション
+    try:
+        base_dt = datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        abort(404)
+
+    headers, records, filename = read_hinmoku_csv(date)
+    if not headers or not records:
+        abort(404, description="品目リストがありません。")
+
+    if hinmokuno < 1 or hinmokuno > len(records):
+        abort(404, description="指定の品目番号が範囲外です。")
+
+    row = records[hinmokuno - 1]
+    # 0:機械番号 1:製番 2:手配番号 3:品目番号 4:品目名 5:手配数 6:段取時間 7:加工時間 8:着手日時 9:完了日時
+    try:
+        start_raw = row[8]
+        end_raw   = row[9]
+        start_dt = parse_flexible_dt(start_raw)
+        end_dt   = parse_flexible_dt(end_raw)
+    except Exception:
+        abort(400, description="着手日時/完了日時の形式が不正です。")
+
+    if end_dt <= start_dt:
+        abort(400, description="完了日時が着手日時以下です。")
+
+    # 区間の状態別集計（当日内に自動クリップ）
+    secs = summarize_states_for_interval(date, start_dt, end_dt)
+    if secs is None:
+        abort(404, description=f"{date}.csv が見つかりません。")
+
+    # 時間に変換（小数2桁）
+    durations_hours = {k: round(v / 3600.0, 2) for k, v in secs.items()}
+
+    # 参考情報
+    interval_info = {
+        "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
+        "end":   end_dt.strftime("%Y/%m/%d %H:%M:%S"),
+        "clipped_date": date  # 当日CSVで集計
+    }
+
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+
+    return render_template(
+        "hinmoku/info.html",
+        date=date,
+        year_month=year_month,
+        hinmokuno=hinmokuno,
+        headers=headers,
+        row=row,
+        durations=durations_hours,
+        interval=interval_info,
+        filename=filename
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
