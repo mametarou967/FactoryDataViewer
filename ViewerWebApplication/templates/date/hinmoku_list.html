@@ -1,59 +1,30 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <title>品目リスト {{ date }}</title>
-  <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "BIZ UDGothic", sans-serif; }
-    .container { max-width: 1200px; margin: 24px auto; padding: 0 12px; }
-    .nav a { margin-right: 8px; }
-    .msg { padding: 12px; background: #fff8d6; border: 1px solid #f0e1a0; border-radius: 6px; display: inline-block; }
-    .caption { color: #666; margin: 6px 0 12px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 6px 8px; white-space: nowrap; }
-    th { background: #f5f5f5; position: sticky; top: 0; }
-    td a { text-decoration: none; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h2>品目リスト（{{ date }}）</h2>
-    <p class="nav">
-      <a href="/">HOME</a> |
-      <a href="/date/{{ date }}/graph">グラフ表示</a> |
-      <a href="/date/{{ date }}/summary">稼働時間集計表示</a> |
-      <a href="/date/{{ date }}/status">状態表示</a> |
-      <a href="/date/{{ date }}/table">データ表示</a> |
-      <strong>品目リスト</strong>
-    </p>
-
-    {% if not has_data %}
-      <p class="msg">品目リストはありません</p>
-    {% else %}
-      <p class="caption">表示ファイル: {{ filename }} ／ 全{{ records|length }}件</p>
-      <div style="overflow:auto;">
-        <table>
-          <thead>
+{% extends "date_base.html" %}
+{% block date_body %}
+  {% if not has_data %}
+    <p class="msg">品目リストはありません</p>
+  {% else %}
+    <p class="caption">表示ファイル: {{ filename }} ／ 全{{ records|length }}件</p>
+    <div style="overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            {% for h in headers %}
+              <th>{{ h }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {# records は (行番号, 元行[]) のタプル #}
+          {% for idx, row in records %}
             <tr>
-              {% for h in headers %}
-                <th>{{ h }}</th>
+              <td><a href="/date/{{ date }}/hinmoku/{{ idx }}">{{ idx }}</a></td>
+              {% for col in row %}
+                <td>{{ col }}</td>
               {% endfor %}
             </tr>
-          </thead>
-          <tbody>
-            {# records は (行番号, 元行[]) のタプル #}
-            {% for idx, row in records %}
-              <tr>
-                <td><a href="/date/{{ date }}/hinmoku/{{ idx }}">{{ idx }}</a></td>
-                {% for col in row %}
-                  <td>{{ col }}</td>
-                {% endfor %}
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% endif %}
-  </div>
-</body>
-</html>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endblock %}

@@ -544,7 +544,10 @@ def show_table(date):
                 "green": row[3],
                 "current": row[4]
             })
-    return render_template("date/sensor_data_list.html", date=date, rows=rows)
+    
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+    
+    return render_template("date/sensor_data_list.html", date=date,year_month=year_month, rows=rows)
 
 @app.route("/date/<date>/status")
 def show_status_table(date):
@@ -568,7 +571,9 @@ def show_status_table(date):
                 "state": state,
                 "color": color
             })
-    return render_template("date/status_list.html", date=date, rows=rows)
+
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+    return render_template("date/status_list.html", date=date,year_month=year_month, rows=rows)
 
 @app.route("/date/<date>/graph")
 def show_graph(date):
@@ -585,7 +590,9 @@ def show_graph(date):
     if not os.path.exists(image_path):
         abort(400, description="グラフ画像の生成に失敗しました。")
 
-    return render_template("date/graph.html", date=date, image_filename=image_filename)
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+
+    return render_template("date/graph.html", date=date, year_month=year_month, image_filename=image_filename)
 
 @app.route("/date/<date>/summary")
 def show_day_summary(date):
@@ -610,7 +617,9 @@ def show_day_summary(date):
     for key in durations:
         durations[key] = round(durations[key] / 3600, 2)
 
-    return render_template("date/summary.html", date=date, durations=durations)
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+
+    return render_template("date/summary.html", date=date, year_month=year_month, durations=durations)
 
 @app.route("/date/<date>/hinmoku")
 def show_hinmoku_for_date(date):
@@ -641,10 +650,13 @@ def show_hinmoku_for_date(date):
     for i, row in enumerate(records, start=1):
         indexed_records.append((i, row))  # (行番号, 元の行)
 
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+    
     return render_template(
         "date/hinmoku_list.html",
         has_data=True,
         date=date,
+        year_month=year_month,
         headers=display_headers,
         records=indexed_records,
         filename=filename
