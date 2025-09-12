@@ -1,15 +1,5 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>{{ year_month }} - 月間状態集計</title>
-</head>
-<body>
-    <h2>{{ year_month }} 日別稼働時間（単位: 時間）</h2>
-    <a href="/">HOME</a> |
-    <a href="/month/{{ year_month }}/graph">日別グラフ表示</a> |
-    <a href="/month/{{ year_month }}/summary">日別稼働時間集計表示</a>
-
+{% extends "month_base.html" %}
+{% block month_body %}
     {% if labels %}
     <table border="1">
         <tr>
@@ -39,7 +29,4 @@
     {% else %}
         <p>この月の有効なデータが見つかりませんでした。</p>
     {% endif %}
-
-    <p><a href="/">戻る</a></p>
-</body>
-</html>
+{% endblock %}

@@ -1,18 +1,7 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>{{ year_month }} の月間グラフ</title>
-</head>
-<body>
-    <h2>{{ year_month }} の日別グラフ</h2>
-    <a href="/">HOME</a> |
-    <a href="/month/{{ year_month }}/graph">日別グラフ表示</a> |
-    <a href="/month/{{ year_month }}/summary">日別稼働時間集計表示</a>
-
+{% extends "month_base.html" %}
+{% block month_body %}
     {% for item in images %}
         <h3>{{ item.date }}</h3>
         <img src="/static/{{ item.image_filename }}" alt="{{ item.date }} のグラフ" style="width: 100%;">
     {% endfor %}
-</body>
-</html>
+{% endblock %}
