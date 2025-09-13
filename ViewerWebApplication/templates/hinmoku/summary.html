@@ -11,6 +11,12 @@
             <td>{{ hours }}</td>
         </tr>
         {% endfor %}
+        <tfoot>
+            <tr>
+                <th>合計</th>
+                <th>{{ durations.values() | sum | round(2) }}</th>
+            </tr>
+        </tfoot>
     </table>
 
     <p><a href="/date/{{ date }}/hinmoku/{{ hinmokuno }}">グラフ表示へ戻る</a></p>

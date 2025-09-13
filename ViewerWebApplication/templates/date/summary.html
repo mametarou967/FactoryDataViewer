@@ -9,5 +9,11 @@
             <td>{{ state }}</td><td>{{ hours }}</td>
         </tr>
         {% endfor %}
+        <tfoot>
+            <tr>
+                <th>合計</th>
+                <th>{{ durations.values() | sum | round(2) }}</th>
+            </tr>
+        </tfoot>
     </table>
 {% endblock %}
