@@ -380,6 +380,27 @@ def summarize_states_for_interval(date_str, start_dt, end_dt):
 
     return secs
 
+def summarize_states_full_day_hours(date_str):
+    """
+    data/<date_str>.csv を読み、日全体（24h）の状態別合計時間（h）を小数2桁で返す。
+    データが無ければ None。
+    """
+    csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
+    if not os.path.exists(csv_path):
+        return None
+    states = ["加工中", "手動加工中", "加工完了", "アラーム", "不明"]
+    secs = {s: 0 for s in states}
+    with open(csv_path, newline='', encoding='utf-8') as f:
+        for row in csv.reader(f):
+            if len(row) < 5:
+                continue
+            try:
+                r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                _, _, state, _ = get_light_status(r, y, g, c)
+                secs[state] += 60
+            except Exception:
+                continue
+    return {k: round(v/3600.0, 2) for k, v in secs.items()}
 
 @app.route("/")
 def index():
@@ -526,6 +547,81 @@ def show_month_summary(year_month):
 
     return render_template("month/summary.html", year_month=year_month, states=states, labels=labels, summaries=summaries)
 
+@app.route("/date/<date>/overview")
+def show_date_overview(date):
+    """
+    3列×(1 + 品目数)行の俯瞰ページ。
+    1行目は日全体、2行目以降は各品目（着手〜完了）。
+    """
+    # 日付バリデーション
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        abort(404)
+
+    items = []
+
+    # --- 行1: 日全体 ---
+    # グラフ（既存ならスキップ最適化付き）
+    day_img = f"{date}_graph.png"
+    generate_graph_image_unified(date_str=date, out_png_path=os.path.join("static", day_img))
+    # 集計
+    day_durations = summarize_states_full_day_hours(date)
+    if day_durations is None:
+        abort(404, description=f"{date}.csv が見つかりません。")
+    items.append({
+        "kind": "day",
+        "index": None,
+        "info": None,
+        "durations": day_durations,
+        "image_filename": day_img
+    })
+
+    # --- 2行目以降: 品目ごと ---
+    headers, records, _ = read_hinmoku_csv(date)
+    if headers and records:
+        for idx, row in enumerate(records, start=1):
+            # 想定列: 0:機械番号 1:製番 2:手配番号 3:品目番号 4:品目名 5:手配数 6:段取時間 7:加工時間 8:着手日時 9:完了日時
+            try:
+                start_dt = parse_flexible_dt(row[8])
+                end_dt   = parse_flexible_dt(row[9])
+            except Exception:
+                # 日時不正はその行だけスキップ
+                continue
+            if end_dt <= start_dt:
+                continue
+
+            # 状態別集計（時間）
+            secs = summarize_states_for_interval(date, start_dt, end_dt)
+            if secs is None:
+                # 当日CSVが無いケースは上で弾いているので通常到達しない
+                continue
+            durations_hours = {k: round(v / 3600.0, 2) for k, v in secs.items()}
+
+            # 画像（品目区間）
+            img_name = f"{date}_hinmoku_{idx}.png"
+            ok = generate_graph_image_for_interval(date, start_dt, end_dt, os.path.join("static", img_name))
+            image_filename = img_name if ok else None
+
+            items.append({
+                "kind": "item",
+                "index": idx,
+                "info": {
+                    "kikai_no": row[0],
+                    "seiban": row[1],
+                    "tehai_no": row[2],
+                    "hinmoku_no": row[3],
+                    "hinmoku_name": row[4],
+                    "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
+                    "end":   end_dt.strftime("%Y/%m/%d %H:%M:%S"),
+                },
+                "durations": durations_hours,
+                "image_filename": image_filename
+            })
+
+    year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
+    return render_template("date/overview.html", date=date, year_month=year_month, items=items)
+    
 @app.route("/date/<date>/table")
 def show_table(date):
     filename = f"{date}.csv"
