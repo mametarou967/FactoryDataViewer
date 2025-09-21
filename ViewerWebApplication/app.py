@@ -8,6 +8,8 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import matplotlib.font_manager as fm
 from collections import defaultdict
+from calendar import monthrange
+
 
 app = Flask(__name__)
 DATA_DIR = "data/sensor"
@@ -458,6 +460,40 @@ def index():
 
     return render_template("index.html", status=status if latest else None, thresholds=THRESHOLDS, current_threshold = CURRENT_THRESHOLD, calendar=calendar)
 
+@app.route("/month/<year_month>/overview")
+def show_month_overview(year_month):
+    """月俯瞰：2列（左=日別サマリ、右=日別グラフ）、DD_MAX行"""
+    try:
+        target_month = datetime.strptime(year_month, "%Y-%m")
+    except ValueError:
+        abort(404)
+
+    year = target_month.year
+    month = target_month.month
+    dd_max = monthrange(year, month)[1]
+
+    items = []
+    for day in range(1, dd_max + 1):
+        date_str = f"{year_month}-{day:02d}"
+        csv_path = os.path.join(DATA_DIR, f"{date_str}.csv")
+
+        durations = None
+        image_filename = None
+
+        if os.path.exists(csv_path):
+            # 左列：日別サマリ（時間）
+            durations = summarize_states_full_day_hours(date_str)  # dict or None（通常はdict）
+            # 右列：日別グラフ
+            generate_graph_image(date_str)  # 既存ならスキップ
+            image_filename = f"{date_str}_graph.png"
+
+        items.append({
+            "date": date_str,
+            "durations": durations,          # None のときは「データなし」を表示
+            "image_filename": image_filename # None のときは「グラフなし」を表示
+        })
+
+    return render_template("month/overview.html", year_month=year_month, items=items)
 
 @app.route("/month/<year_month>/graph")
 def show_month_graph(year_month):
