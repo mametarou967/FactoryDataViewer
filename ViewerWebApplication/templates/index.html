@@ -84,7 +84,7 @@
         <div class="calendar-item">
             <h3>
                 {% if data.month_link %}
-                    <a href="/month/{{ ym }}/graph">{{ ym }}</a>
+                    <a href="/month/{{ ym }}/overview">{{ ym }}</a>
                 {% else %}
                     {{ ym }}
                 {% endif %}
@@ -106,7 +106,7 @@
                             {% set weekday = loop.index0 %}
                             <td class="{% if weekday == 5 %}saturday{% elif weekday == 6 %}sunday{% endif %}">
                                 {% if day.link %}
-                                    <a href="/date/{{ day.date }}/graph">{{ day.day }}</a>
+                                    <a href="/date/{{ day.date }}/overview">{{ day.day }}</a>
                                 {% else %}
                                     {{ day.day }}
                                 {% endif %}
