@@ -335,6 +335,65 @@ def parse_flexible_dt(s):
         pass
     raise ValueError("日時の形式が不正です")
 
+def get_current_processing_items(now=None):
+    """
+    今日の A214_YYYYMMDD_.csv を調べ、現在時刻が
+    [着手日時, 完了日時) に含まれる（完了未記入は現在>着手で該当）品目を返す。
+    返り値: {"has_csv": bool, "expected": 期待ファイル名, "items": [ {...}, ... ]}
+    items 要素は date/overview の1列目相当の info を含む。
+    """
+    if now is None:
+        now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+
+    headers, records, expected_name = read_hinmoku_csv(today_str)
+    result = {"has_csv": False, "expected": expected_name, "items": []}
+
+    if not headers or records is None:
+        # CSV が無い・読めない
+        return result
+
+    result["has_csv"] = True
+
+    for idx, row in enumerate(records, start=1):
+        # 想定列：0:機械番号 1:製番 2:手配番号 3:品目番号 4:品目名 5:手配数 6:段取時間 7:加工時間 8:着手日時 9:完了日時
+        if len(row) < 10:
+            continue
+
+        start_raw = (row[8] or "").strip()
+        end_raw   = (row[9] or "").strip()
+
+        try:
+            start_dt = parse_flexible_dt(start_raw)
+        except Exception:
+            continue
+
+        end_dt = None
+        if end_raw:
+            try:
+                end_dt = parse_flexible_dt(end_raw)
+            except Exception:
+                end_dt = None
+
+        # 現在が区間内か？（完了未記入は「現在 >= 着手」で該当）
+        in_progress = (start_dt <= now) and (end_dt is None or now < end_dt)
+        if not in_progress:
+            continue
+
+        info = {
+            "kikai_no": row[0],
+            "seiban": row[1],
+            "tehai_no": row[2],
+            "hinmoku_no": row[3],
+            "hinmoku_name": row[4],
+            "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
+            "end": (end_dt.strftime("%Y/%m/%d %H:%M:%S") if end_dt else "（未完了）")
+        }
+        result["items"].append({"index": idx, "info": info})
+
+    return result
+
+
 # --- 追記: 区間限定の状態別集計ユーティリティ ---
 def summarize_states_for_interval(date_str, start_dt, end_dt):
     """
@@ -406,13 +465,19 @@ def summarize_states_full_day_hours(date_str):
 
 @app.route("/")
 def index():
+    # --- ライト/電流の最新値（過去5分） ---
     latest = get_latest_data()
     status = {}
     if latest:
         lights, _, _, _ = get_light_status(latest["red"], latest["yellow"], latest["green"], latest["current"])
         status = {**lights, "current": latest["current"], "timestamp": latest["timestamp"]}
-    # 年度判定（4月～翌年3月）
+
+    # --- 右カラム：現在の加工状況（今日のhinmoku）---
     now = datetime.now()
+    current_work = get_current_processing_items(now=now)
+    today_str = now.strftime("%Y-%m-%d")
+
+    # --- 年度カレンダー（4月～翌年3月） ---
     if now.month >= 4:
         fiscal_start = datetime(now.year, 4, 1)
     else:
@@ -458,7 +523,16 @@ def index():
 
         current += timedelta(days=1)
 
-    return render_template("index.html", status=status if latest else None, thresholds=THRESHOLDS, current_threshold = CURRENT_THRESHOLD, calendar=calendar)
+    return render_template(
+        "index.html",
+        status=(status if latest else None),
+        thresholds=THRESHOLDS,
+        current_threshold=CURRENT_THRESHOLD,
+        calendar=calendar,
+        current_work=current_work,
+        today=today_str
+    )
+
 
 @app.route("/month/<year_month>/overview")
 def show_month_overview(year_month):
