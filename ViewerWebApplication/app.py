@@ -110,7 +110,7 @@ def read_hinmoku_csv(date_str):
     文字コードは cp932 優先、失敗時に utf-8 にフォールバック。
     """
     yyyymmdd = datetime.strptime(date_str, "%Y-%m-%d").strftime("%Y%m%d")
-    expected_name = f"A214_{yyyymmdd}_.csv"
+    expected_name = f"A214_{yyyymmdd}.csv"
     dirpath = os.path.join(DATA_DIR, HINMOKU_SUBDIR)
     filepath = os.path.join(dirpath, expected_name)
 
