@@ -7,6 +7,7 @@
             {% for label in labels %}
                 <th>{{ label[5:] }}</th>
             {% endfor %}
+            <th>合計(時間)</th>
         </tr>
         {% for state in states %}
         <tr>
@@ -14,17 +15,25 @@
                 {% if state == "加工中" %}加工中（緑）
                 {% elif state == "手動加工中" %}手動加工中（青）
                 {% elif state == "加工完了" %}加工完了（黄）
-                {% elif state == "設備停止／アラーム" %}設備停止／アラーム（赤）
-                {% elif state == "加工終了／設備停止" %}加工終了／設備停止（橙）
-                {% elif state == "加工中／軽微なアラーム" %}加工中／軽微なアラーム（紫）
+                {% elif state == "アラーム" %}アラーム（赤）
                 {% else %}不明（灰）
                 {% endif %}
             </td>
             {% for val in summaries[state] %}
                 <td>{{ val }}</td>
             {% endfor %}
+            <td><strong>{{ row_totals[state] }}</strong></td>
         </tr>
         {% endfor %}
+
+        <!-- 最下行：各日の合計（列合計）と総合計 -->
+        <tr>
+            <td><strong>合計(時間)</strong></td>
+            {% for colsum in column_totals %}
+                <td><strong>{{ colsum }}</strong></td>
+            {% endfor %}
+            <td><strong>{{ grand_total }}</strong></td>
+        </tr>
     </table>
     {% else %}
         <p>この月の有効なデータが見つかりませんでした。</p>

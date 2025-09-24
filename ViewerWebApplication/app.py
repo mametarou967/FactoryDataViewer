@@ -646,7 +646,6 @@ def show_month_graph(year_month):
 
 @app.route("/month/<year_month>/summary")
 def show_month_summary(year_month):
-    print("hello")
     try:
         target_month = datetime.strptime(year_month, "%Y-%m")
     except ValueError:
@@ -656,24 +655,21 @@ def show_month_summary(year_month):
     summaries = {state: [] for state in states}
     labels = []
 
-    # 存在する .csv の中で該当月のものだけを処理
+    # 該当月の .csv だけを処理（ファイル名=YYYY-MM-DD.csv）
     for fname in sorted(os.listdir(DATA_DIR)):
-        print(fname)
         if not fname.endswith(".csv"):
             continue
         try:
             date_obj = datetime.strptime(fname[:-4], "%Y-%m-%d")
         except ValueError:
             continue
-
         if date_obj.strftime("%Y-%m") != year_month:
             continue
 
         labels.append(date_obj.strftime("%Y-%m-%d"))
         filepath = os.path.join(DATA_DIR, fname)
-        durations = {state: 0 for state in states}
+        durations_sec = {state: 0 for state in states}
 
-        print(filepath)
         with open(filepath, newline='', encoding='utf-8') as f:
             for row in csv.reader(f):
                 if len(row) < 5:
@@ -681,18 +677,43 @@ def show_month_summary(year_month):
                 try:
                     r, y, g, c = float(row[1]), float(row[2]), float(row[3]), float(row[4])
                     _, _, state, _ = get_light_status(r, y, g, c)
-                    durations[state] += 60
+                    durations_sec[state] += 60  # 1分粒度
                 except:
                     continue
 
+        # 時間(h)に変換して格納
         for state in states:
-            summaries[state].append(round(durations[state] / 3600, 2))
+            summaries[state].append(round(durations_sec[state] / 3600, 2))
 
-    # データが1件もない場合はabort
     if not labels:
         abort(404, description="指定された月にデータが見つかりませんでした")
 
-    return render_template("month/summary.html", year_month=year_month, states=states, labels=labels, summaries=summaries)
+    # 追加：行合計（状態ごとの月合計）、列合計（各日合計）、総合計
+    row_totals = {state: round(sum(summaries[state]), 2) for state in states}
+
+    # 列合計は labels の順に、全状態の和
+    num_days = len(labels)
+    column_totals = []
+    for i in range(num_days):
+        day_sum = 0.0
+        for state in states:
+            # 保険：長さ不一致があっても安全に
+            if i < len(summaries[state]):
+                day_sum += summaries[state][i]
+        column_totals.append(round(day_sum, 2))
+
+    grand_total = round(sum(row_totals.values()), 2)
+
+    return render_template(
+        "month/summary.html",
+        year_month=year_month,
+        states=states,
+        labels=labels,
+        summaries=summaries,
+        row_totals=row_totals,
+        column_totals=column_totals,
+        grand_total=grand_total,
+    )
 
 @app.route("/date/<date>/overview")
 def show_date_overview(date):
