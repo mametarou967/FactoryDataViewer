@@ -303,6 +303,33 @@ def generate_graph_image_for_interval(date_str, start_dt, end_dt, out_png_path):
         skip_if_up_to_date=False,
     )
 
+def generate_graph_image_for_intervals(date_str, intervals, out_png_path):
+    """
+    複数区間の合成グラフを1枚に描画。
+    """
+    if not intervals:
+        return False
+
+    # 分ごとの色を区間ごとに読み、ORマージ
+    merged = {}
+    for s_dt, e_dt in intervals:
+        mc = _load_minute_colors(date_str, start_dt=s_dt, end_dt=e_dt, include_gray=True)
+        if not mc:
+            continue
+        merged.update(mc)
+
+    if not merged:
+        return False
+
+    # タイトル：最初と最後の時刻を表示
+    s_label = intervals[0][0].strftime("%H:%M")
+    e_label = intervals[-1][1].strftime("%H:%M")
+    title = f"{date_str} 品目時間帯グラフ（{s_label}〜{e_label}／{len(intervals)}区間）"
+
+    _render_day_timeline(date_str, merged, out_png_path, title)
+    return True
+
+
 # --- 追記: 柔軟な日時パーサ（秒あり/なしを許容） ---
 def parse_flexible_dt(s):
     """
@@ -334,6 +361,61 @@ def parse_flexible_dt(s):
     except Exception:
         pass
     raise ValueError("日時の形式が不正です")
+
+def extract_intervals_from_row(date_str, row):
+    """
+    新CSV1行から最大5つの区間[(start_dt, end_dt), ...]を返す。
+    列: 9=開始1,10=停止1, 11=開始2,12=停止2, ..., 17=開始5,18=停止5
+    """
+    base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    day_start = datetime.combine(base_date, time(0, 0, 0))
+    day_end   = datetime.combine(base_date, time(23, 59, 59))
+    now = datetime.now()
+
+    intervals = []
+    # 5ペアを走査
+    for i in range(5):
+        s_idx = 9 + 2*i
+        e_idx = 10 + 2*i
+        if len(row) <= s_idx:
+            break
+        s_raw = (row[s_idx] or "").strip()
+        e_raw = (row[e_idx] if len(row) > e_idx else "")
+        e_raw = (e_raw or "").strip()
+
+        if not s_raw:
+            continue  # 開始が空→このペアなし
+
+        try:
+            s_dt = parse_flexible_dt(s_raw)
+        except Exception:
+            continue
+
+        # 停止の補完
+        e_dt = None
+        if e_raw:
+            try:
+                e_dt = parse_flexible_dt(e_raw)
+            except Exception:
+                e_dt = None
+        if e_dt is None:
+            e_dt = min(now, day_end) if base_date == now.date() else day_end
+
+        # 当日範囲にクリップ
+        s_dt = max(s_dt, day_start)
+        e_dt = min(e_dt, day_end)
+
+        if e_dt <= s_dt:
+            e_dt = min(s_dt + timedelta(minutes=1), day_end)
+
+        # 最終的に当日と重なるものだけ採用
+        if s_dt < e_dt:
+            intervals.append((s_dt, e_dt))
+
+    # 時刻順に整列
+    intervals.sort(key=lambda t: t[0])
+    return intervals
+
 
 def resolve_item_interval(date_str, start_raw, end_raw):
     """
@@ -373,49 +455,31 @@ def resolve_item_interval(date_str, start_raw, end_raw):
     return start_dt, end_dt
 
 def get_current_processing_items(now=None):
-    """
-    今日の A214_YYYYMMDD_.csv を調べ、現在時刻が
-    [着手日時, 完了日時) に含まれる（完了未記入は現在>着手で該当）品目を返す。
-    返り値: {"has_csv": bool, "expected": 期待ファイル名, "items": [ {...}, ... ]}
-    items 要素は date/overview の1列目相当の info を含む。
-    """
     if now is None:
         now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
 
     headers, records, expected_name = read_hinmoku_csv(today_str)
     result = {"has_csv": False, "expected": expected_name, "items": []}
-
     if not headers or records is None:
-        # CSV が無い・読めない
         return result
-
     result["has_csv"] = True
 
     for idx, row in enumerate(records, start=1):
-        # 想定列：0:機械番号 1:製番 2:手配番号 3:品目番号 4:品目名 5:手配数 6:段取時間 7:加工時間 8:着手日時 9:完了日時
-        if len(row) < 10:
+        if len(row) < 19:  # 最低でも停止5までの列がある想定
+            # 多少短いCSVでも、開始1(9)があれば動くように下限は緩くしてもOK
+            pass
+        intervals = extract_intervals_from_row(today_str, row)
+        if not intervals:
             continue
 
-        start_raw = (row[8] or "").strip()
-        end_raw   = (row[9] or "").strip()
-
-        try:
-            start_dt = parse_flexible_dt(start_raw)
-        except Exception:
+        # now がどれかの区間に含まれる？
+        in_any = any(s <= now < e for s, e in intervals)
+        if not in_any:
             continue
 
-        end_dt = None
-        if end_raw:
-            try:
-                end_dt = parse_flexible_dt(end_raw)
-            except Exception:
-                end_dt = None
-
-        # 現在が区間内か？（完了未記入は「現在 >= 着手」で該当）
-        in_progress = (start_dt <= now) and (end_dt is None or now < end_dt)
-        if not in_progress:
-            continue
+        # 表示用：区間を "HH:MM-HH:MM / ..." につなぐ
+        intervals_str = " / ".join(f"{s.strftime('%H:%M')}-{e.strftime('%H:%M')}" for s, e in intervals)
 
         info = {
             "kikai_no": row[0],
@@ -423,12 +487,13 @@ def get_current_processing_items(now=None):
             "tehai_no": row[2],
             "hinmoku_no": row[3],
             "hinmoku_name": row[4],
-            "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
-            "end": (end_dt.strftime("%Y/%m/%d %H:%M:%S") if end_dt else "（未完了）")
+            "intervals": intervals_str,
+            "status": (row[8] if len(row) > 8 else "")
         }
         result["items"].append({"index": idx, "info": info})
 
     return result
+
 
 
 # --- 追記: 区間限定の状態別集計ユーティリティ ---
@@ -477,6 +542,47 @@ def summarize_states_for_interval(date_str, start_dt, end_dt):
                 continue
 
     return secs
+
+def summarize_states_for_intervals(date_str, intervals):
+    """
+    複数区間の合計（状態別・秒）を返す。
+    """
+    if not intervals:
+        return {k: 0 for k in ["加工中", "手動加工中", "加工完了", "アラーム", "不明"]}
+    total = {k: 0 for k in ["加工中", "手動加工中", "加工完了", "アラーム", "不明"]}
+    for s_dt, e_dt in intervals:
+        secs = summarize_states_for_interval(date_str, s_dt, e_dt)
+        if secs is None:
+            continue
+        for k, v in secs.items():
+            total[k] += v
+    return total
+
+def generate_graph_image_for_intervals(date_str, intervals, out_png_path):
+    """
+    複数区間の合成グラフを1枚に描画。
+    """
+    if not intervals:
+        return False
+
+    # 分ごとの色を区間ごとに読み、ORマージ
+    merged = {}
+    for s_dt, e_dt in intervals:
+        mc = _load_minute_colors(date_str, start_dt=s_dt, end_dt=e_dt, include_gray=True)
+        if not mc:
+            continue
+        merged.update(mc)
+
+    if not merged:
+        return False
+
+    # タイトル：最初と最後の時刻を表示
+    s_label = intervals[0][0].strftime("%H:%M")
+    e_label = intervals[-1][1].strftime("%H:%M")
+    title = f"{date_str} 品目時間帯グラフ（{s_label}〜{e_label}／{len(intervals)}区間）"
+
+    _render_day_timeline(date_str, merged, out_png_path, title)
+    return True
 
 def summarize_states_full_day_hours(date_str):
     """
@@ -717,23 +823,15 @@ def show_month_summary(year_month):
 
 @app.route("/date/<date>/overview")
 def show_date_overview(date):
-    """
-    3列×(1 + 品目数)行の俯瞰ページ。
-    1行目は日全体、2行目以降は各品目（着手〜完了）。
-    """
-    # 日付バリデーション
     try:
         datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
         abort(404)
 
     items = []
-
-    # --- 行1: 日全体 ---
-    # グラフ（既存ならスキップ最適化付き）
+    # 行1（日全体）
     day_img = f"{date}_graph.png"
     generate_graph_image_unified(date_str=date, out_png_path=os.path.join("static", day_img))
-    # 集計
     day_durations = summarize_states_full_day_hours(date)
     if day_durations is None:
         abort(404, description=f"{date}.csv が見つかりません。")
@@ -745,30 +843,24 @@ def show_date_overview(date):
         "image_filename": day_img
     })
 
-    # --- 2行目以降: 品目ごと ---
+    # 品目列（新CSV：状態＋開始/停止×5）
     headers, records, _ = read_hinmoku_csv(date)
     if headers and records:
         for idx, row in enumerate(records, start=1):
-            # 想定列: 0:機械番号 1:製番 2:手配番号 3:品目番号 4:品目名 5:手配数 6:段取時間 7:加工時間 8:着手日時 9:完了日時
-            try:
-                start_dt, end_dt = resolve_item_interval(date, row[8], (row[9] if len(row) > 9 else ""))
-            except Exception:
-                # 着手が不正なものはスキップ
+            intervals = extract_intervals_from_row(date, row)
+            if not intervals:
                 continue
 
             # 状態別集計（時間）
-            secs = summarize_states_for_interval(date, start_dt, end_dt)
-            if secs is None:
-                continue
+            secs = summarize_states_for_intervals(date, intervals)
             durations_hours = {k: round(v / 3600.0, 2) for k, v in secs.items()}
 
-            # 画像（品目区間）
+            # 画像（複数区間）
             img_name = f"{date}_hinmoku_{idx}.png"
-            ok = generate_graph_image_for_interval(date, start_dt, end_dt, os.path.join("static", img_name))
+            ok = generate_graph_image_for_intervals(date, intervals, os.path.join("static", img_name))
             image_filename = img_name if ok else None
 
-            # 表示用の完了欄（CSVが空/不正だった場合は“（未完了）”と表示）
-            end_display = (row[9].strip() if len(row) > 9 and row[9].strip() else "（未完了）")
+            intervals_str = " / ".join(f"{s.strftime('%H:%M')}-{e.strftime('%H:%M')}" for s, e in intervals)
 
             items.append({
                 "kind": "item",
@@ -779,8 +871,8 @@ def show_date_overview(date):
                     "tehai_no": row[2],
                     "hinmoku_no": row[3],
                     "hinmoku_name": row[4],
-                    "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
-                    "end":   end_display,
+                    "status": (row[8] if len(row) > 8 else ""),
+                    "intervals": intervals_str,
                 },
                 "durations": durations_hours,
                 "image_filename": image_filename
@@ -927,9 +1019,6 @@ def show_hinmoku_for_date(date):
 
 @app.route("/date/<date>/hinmoku/<int:hinmokuno>")
 def show_hinmoku_graph(date, hinmokuno):
-    """
-    指定行(hinmokuno: 1始まり)の「着手〜完了(未記入は補完)」区間だけ色が付いた1日グラフを生成・表示。
-    """
     try:
         datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
@@ -943,15 +1032,13 @@ def show_hinmoku_graph(date, hinmokuno):
         abort(404, description="指定の品目番号が範囲外です。")
 
     row = records[hinmokuno - 1]
-    try:
-        start_dt, end_dt = resolve_item_interval(date, row[8], (row[9] if len(row) > 9 else ""))
-    except Exception:
-        abort(400, description="着手日時の形式が不正です。")
+    intervals = extract_intervals_from_row(date, row)
+    if not intervals:
+        abort(400, description="有効な開始/停止区間がありません。")
 
-    # 画像生成
     image_filename = f"{date}_hinmoku_{hinmokuno}.png"
     image_path = os.path.join("static", image_filename)
-    ok = generate_graph_image_for_interval(date, start_dt, end_dt, image_path)
+    ok = generate_graph_image_for_intervals(date, intervals, image_path)
     if not ok:
         abort(400, description="グラフ画像の生成に失敗しました。対象区間にデータが無い可能性があります。")
 
@@ -966,8 +1053,6 @@ def show_hinmoku_graph(date, hinmokuno):
         headers=headers
     )
 
-
-# --- 追記: 品目の稼働時間集計（着手〜完了） ---
 @app.route("/date/<date>/hinmoku/<int:hinmokuno>/summary")
 def show_hinmoku_summary(date, hinmokuno):
     try:
@@ -983,20 +1068,19 @@ def show_hinmoku_summary(date, hinmokuno):
         abort(404, description="指定の品目番号が範囲外です。")
 
     row = records[hinmokuno - 1]
-    try:
-        start_dt, end_dt = resolve_item_interval(date, row[8], (row[9] if len(row) > 9 else ""))
-    except Exception:
-        abort(400, description="着手日時の形式が不正です。")
+    intervals = extract_intervals_from_row(date, row)
+    if not intervals:
+        abort(404, description="有効な開始/停止区間がありません。")
 
-    secs = summarize_states_for_interval(date, start_dt, end_dt)
+    secs = summarize_states_for_intervals(date, intervals)
     if secs is None:
         abort(404, description=f"{date}.csv が見つかりません。")
 
     durations_hours = {k: round(v / 3600.0, 2) for k, v in secs.items()}
     interval_info = {
-        "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
-        "end":   (row[9].strip() if len(row) > 9 and row[9].strip() else "（未完了→補完）"),
-        "clipped_date": date
+        "intervals": " / ".join(f"{s.strftime('%H:%M')}-{e.strftime('%H:%M')}" for s, e in intervals),
+        "clipped_date": date,
+        "status": (row[8] if len(row) > 8 else "")
     }
 
     year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")
@@ -1012,7 +1096,6 @@ def show_hinmoku_summary(date, hinmokuno):
         filename=filename
     )
 
-# --- 追加: 本日分の手配情報（品目の基本情報を分離表示） ---
 @app.route("/date/<date>/hinmoku/<int:hinmokuno>/info")
 def show_hinmoku_info(date, hinmokuno):
     try:
@@ -1028,20 +1111,19 @@ def show_hinmoku_info(date, hinmokuno):
         abort(404, description="指定の品目番号が範囲外です。")
 
     row = records[hinmokuno - 1]
-    try:
-        start_dt, end_dt = resolve_item_interval(date, row[8], (row[9] if len(row) > 9 else ""))
-    except Exception:
-        abort(400, description="着手日時の形式が不正です。")
+    intervals = extract_intervals_from_row(date, row)
+    if not intervals:
+        abort(404, description="有効な開始/停止区間がありません。")
 
-    secs = summarize_states_for_interval(date, start_dt, end_dt)
+    secs = summarize_states_for_intervals(date, intervals)
     if secs is None:
         abort(404, description=f"{date}.csv が見つかりません。")
 
     durations_hours = {k: round(v / 3600.0, 2) for k, v in secs.items()}
     interval_info = {
-        "start": start_dt.strftime("%Y/%m/%d %H:%M:%S"),
-        "end":   (row[9].strip() if len(row) > 9 and row[9].strip() else "（未完了→補完）"),
-        "clipped_date": date
+        "intervals": " / ".join(f"{s.strftime('%H:%M')}-{e.strftime('%H:%M')}" for s, e in intervals),
+        "clipped_date": date,
+        "status": (row[8] if len(row) > 8 else "")
     }
 
     year_month = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m")

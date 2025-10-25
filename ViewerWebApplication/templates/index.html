@@ -98,7 +98,7 @@
       <h2>現在の加工状況</h2>
       {% if current_work['has_csv'] %}
         {% if current_work['items'] %}
-          <div class="mini">本日 {{ today }} の「着手〜完了」に現在時刻が含まれる品目を列として表示しています。</div>
+          <div class="mini">本日 {{ today }} の「開始/停止のいずれかの区間」に現在時刻が含まれる品目を列として表示しています。</div>
           <div class="h-scroll">
             <div class="tight wide">
               <table>
@@ -151,15 +151,15 @@
                     {% endfor %}
                   </tr>
                   <tr>
-                    <th class="sticky-left">着手</th>
+                    <th class="sticky-left">状態</th>
                     {% for it in current_work['items'] %}
-                      <td>{{ it.info.start }}</td>
+                      <td>{{ it.info.status }}</td>
                     {% endfor %}
                   </tr>
                   <tr>
-                    <th class="sticky-left">完了</th>
+                    <th class="sticky-left">区間</th>
                     {% for it in current_work['items'] %}
-                      <td>{{ it.info.end }}</td>
+                      <td>{{ it.info.intervals }}</td>
                     {% endfor %}
                   </tr>
                   <tr>
